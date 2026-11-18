@@ -4,9 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบบันทึกสินค้าและติดตามวันหมดอายุ</title>
-  
+
+  <!-- PWA: ติดตั้งเป็นแอปบนมือถือ -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#059669">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Stock & Expiry">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+
   <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Font: Kanit -->
@@ -14,7 +24,7 @@
   <!-- Html5-QRCode Library for Barcode Scanning -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <!-- Supabase JS Client Library -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 
   <style>
     body {
@@ -37,15 +47,74 @@
   <!-- Mobile View Container -->
   <div class="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col relative pb-20 overflow-x-hidden">
     
+    <!-- Login Screen (ล็อกอินด้วย Telegram ID + รหัสจากบอท) -->
+    <div id="login-screen" class="hidden fixed inset-0 z-[80] bg-slate-100 justify-center overflow-y-auto">
+      <div class="w-full max-w-md bg-white min-h-screen flex flex-col shadow-2xl">
+        <div class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white px-6 pt-14 pb-10 text-center">
+          <img src="icons/icon-192.png" alt="" class="w-16 h-16 rounded-2xl mx-auto shadow-lg">
+          <h1 class="text-xl font-bold mt-4">Stock &amp; Expiry</h1>
+          <p class="text-xs text-emerald-100 mt-1">เข้าสู่ระบบด้วย Telegram</p>
+        </div>
+
+        <div class="flex-1 px-6 py-8">
+          <!-- Step 1: ใส่ Telegram ID -->
+          <form id="login-step-id" onsubmit="requestLoginCode(event)" class="space-y-4">
+            <div>
+              <label for="login-telegram-id" class="block text-xs font-semibold text-slate-600 mb-1">Telegram ID ของคุณ</label>
+              <input id="login-telegram-id" type="text" inputmode="numeric" autocomplete="username" maxlength="15" required placeholder="เช่น 123456789"
+                class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-lg tracking-wider font-mono focus:ring-2 focus:ring-sky-500 focus:bg-white outline-none transition">
+            </div>
+            <button type="submit" id="login-request-btn" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold p-3.5 rounded-xl shadow-lg shadow-sky-500/30 transition flex items-center justify-center space-x-2 disabled:opacity-60">
+              <i class="fa-brands fa-telegram text-lg"></i>
+              <span>ส่งรหัสเข้า Telegram</span>
+            </button>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-500 space-y-1.5 leading-relaxed">
+              <p><b class="text-slate-700">ครั้งแรก:</b> เปิดแชทกับบอทของร้านใน Telegram แล้วกด <b>Start</b> ก่อน <span id="login-bot-link"></span></p>
+              <p><b class="text-slate-700">ไม่รู้ ID ตัวเอง?</b> ทัก <b>@userinfobot</b> ใน Telegram แล้วดูตัวเลขที่ช่อง Id</p>
+              <p><b class="text-slate-700">ยังไม่มีสิทธิ์?</b> แจ้งเจ้าของร้านให้เพิ่ม ID ของคุณ</p>
+            </div>
+          </form>
+
+          <!-- Step 2: ใส่รหัส 6 หลัก -->
+          <form id="login-step-code" onsubmit="verifyLoginCode(event)" class="hidden space-y-4">
+            <div class="text-center">
+              <i class="fa-brands fa-telegram text-4xl text-sky-500"></i>
+              <p class="text-sm font-semibold text-slate-700 mt-2">ใส่รหัส 6 หลักที่ได้รับใน Telegram</p>
+              <p class="text-xs text-slate-500 mt-0.5">ID <span id="login-sent-id" class="font-mono font-semibold text-slate-700"></span> · รหัสหมดอายุใน 5 นาที</p>
+            </div>
+            <input id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required oninput="onLoginCodeInput(this)" placeholder="••••••"
+              class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition">
+            <button type="submit" id="login-verify-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3.5 rounded-xl shadow-lg shadow-emerald-600/30 transition disabled:opacity-60">
+              เข้าสู่ระบบ
+            </button>
+            <div class="flex justify-between items-center text-xs pt-1">
+              <button type="button" onclick="backToLoginId()" class="text-slate-500 hover:text-slate-700 py-1">
+                <i class="fa-solid fa-arrow-left mr-1"></i> เปลี่ยน ID
+              </button>
+              <button type="button" id="login-resend-btn" onclick="resendLoginCode()" class="text-emerald-700 hover:text-emerald-800 font-semibold py-1 disabled:text-slate-400 disabled:cursor-not-allowed">
+                ส่งรหัสใหม่
+              </button>
+            </div>
+          </form>
+
+          <p id="login-error" role="alert" class="hidden mt-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl p-3"></p>
+          <p id="login-info" class="hidden mt-4 text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded-xl p-3"></p>
+        </div>
+      </div>
+    </div>
+
     <!-- Top Header -->
     <header class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-4 shadow-md sticky top-0 z-30 flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <i class="fa-solid fa-boxes-packing text-2xl text-emerald-200"></i>
-        <h1 class="font-bold text-lg tracking-wide">Stock & Expiry Tracker</h1>
+      <div class="flex items-center space-x-2 min-w-0">
+        <i class="fa-solid fa-boxes-packing text-2xl text-emerald-200 shrink-0"></i>
+        <h1 class="font-bold text-base tracking-wide leading-tight truncate">Stock & Expiry</h1>
       </div>
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center space-x-1 shrink-0">
+        <button onclick="openExportModal()" class="p-2 text-emerald-100 hover:text-white rounded-full transition" title="ส่งออกข้อมูล (Excel/CSV)" aria-label="ส่งออกข้อมูล">
+          <i class="fa-solid fa-file-arrow-down text-lg"></i>
+        </button>
         <span class="text-[10px] bg-emerald-700/80 px-2 py-1 rounded-full text-emerald-100 flex items-center">
-          <i class="fa-solid fa-database text-xs mr-1 text-emerald-300"></i> Supabase / Local
+          <i class="fa-solid fa-database text-xs mr-1 text-emerald-300"></i> <span id="db-mode-text">กำลังเชื่อมต่อ...</span>
         </span>
         <button onclick="openInfoModal()" class="p-2 text-emerald-100 hover:text-white rounded-full transition" title="ข้อมูลการเชื่อมต่อ">
           <i class="fa-solid fa-circle-info text-lg"></i>
@@ -58,6 +127,19 @@
       
       <!-- SCREEN 1: Feed/Dashboard (หน้าฟีดติดตามวันหมดอายุ) -->
       <section id="screen-1" class="space-y-4">
+        <!-- Install App Banner (แสดงเมื่อติดตั้งได้) -->
+        <div id="install-banner" class="hidden bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-3 items-center space-x-3">
+          <img src="icons/icon-192.png" alt="" class="w-10 h-10 rounded-xl shrink-0">
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-bold text-emerald-900">ติดตั้งเป็นแอปบนมือถือ</p>
+            <p id="install-banner-text" class="text-[11px] text-emerald-700 leading-snug">เปิดเร็ว เต็มจอ และเปิดดูได้แม้ไม่มีเน็ต</p>
+          </div>
+          <button id="install-banner-btn" onclick="installApp()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0 transition">ติดตั้ง</button>
+          <button onclick="dismissInstallBanner()" class="text-emerald-400 hover:text-emerald-700 p-1 shrink-0" aria-label="ปิด">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
         <!-- Banner Summary -->
         <div class="grid grid-cols-2 gap-3">
           <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl flex items-center space-x-3 shadow-sm">
@@ -80,12 +162,23 @@
           </div>
         </div>
 
-        <!-- Filter & Search -->
-        <div class="flex items-center justify-between pt-2">
-          <h2 class="font-bold text-slate-700 text-base flex items-center">
-            <i class="fa-solid fa-clock-rotate-left mr-2 text-emerald-600"></i> รายการสินค้าบันทึก
-          </h2>
-          <select id="feed-filter" onchange="renderFeedList()" class="bg-slate-100 border border-slate-300 text-xs rounded-lg p-1.5 focus:ring-2 focus:ring-emerald-500 outline-none">
+        <!-- View Tabs: รายการปัจจุบัน / ประวัติ -->
+        <div class="bg-slate-100 p-1 rounded-xl flex space-x-1">
+          <button type="button" id="feed-view-active" onclick="setFeedView('active')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-emerald-700 shadow-sm transition">
+            <i class="fa-solid fa-list-check mr-1"></i> รายการปัจจุบัน
+          </button>
+          <button type="button" id="feed-view-history" onclick="setFeedView('history')" class="flex-1 py-2 rounded-lg text-xs font-medium text-slate-500 transition">
+            <i class="fa-solid fa-clock-rotate-left mr-1"></i> ประวัติ
+          </button>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="flex items-center space-x-2">
+          <div class="relative flex-1 min-w-0">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="search" id="feed-search" oninput="renderFeedList()" placeholder="ค้นหาชื่อ บาร์โค้ด หรือหมายเหตุ" class="w-full bg-slate-50 border border-slate-300 rounded-xl py-2 pl-8 pr-3 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+          <select id="feed-filter" onchange="renderFeedList()" class="shrink-0 bg-slate-100 border border-slate-300 text-xs rounded-xl py-2 px-1.5 focus:ring-2 focus:ring-emerald-500 outline-none">
             <option value="all">ทั้งหมด</option>
             <option value="expired">หมดอายุแล้ว</option>
             <option value="7">น้อยกว่า 7 วัน</option>
@@ -95,6 +188,9 @@
             <option value="90">น้อยกว่า 90 วัน</option>
           </select>
         </div>
+
+        <!-- History Summary (เดือนนี้) -->
+        <div id="history-summary" class="hidden"></div>
 
         <!-- Expiry Cards List Container -->
         <div id="feed-list" class="space-y-3">
@@ -189,7 +285,7 @@
           <div>
             <div class="flex justify-between items-center mb-1">
               <label class="block text-xs font-semibold text-slate-600">หน่วยนับ <span class="text-red-500">*</span></label>
-              <button type="button" onclick="openAddUnitModal()" class="text-xs text-indigo-600 hover:underline font-medium">+ เพิ่มหน่วยใหม่</button>
+              <button type="button" onclick="openAddUnitModal('master-unit')" class="text-xs text-indigo-600 hover:underline font-medium">+ เพิ่มหน่วยใหม่</button>
             </div>
             <select id="master-unit" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
               <!-- Options loaded dynamically -->
@@ -224,7 +320,11 @@
 
         <!-- Existing Master List View -->
         <div class="pt-4 border-t border-slate-200">
-          <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2">รายการสินค้าหลักทั้งหมด</h3>
+          <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2">รายการสินค้าหลักทั้งหมด <span id="master-count" class="text-slate-400 font-medium normal-case"></span></h3>
+          <div class="relative mb-2">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="search" id="master-search" oninput="renderMasterList()" placeholder="ค้นหาชื่อสินค้าหรือบาร์โค้ด" class="w-full bg-slate-50 border border-slate-300 rounded-xl py-2 pl-8 pr-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
           <div id="master-products-list" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
             <!-- Dynamic master items -->
           </div>
@@ -275,7 +375,7 @@
           <div>
             <div class="flex justify-between items-center mb-1">
               <label class="block text-xs font-semibold text-slate-600">หน่วยนับ <span class="text-red-500">*</span></label>
-              <button type="button" onclick="openAddUnitModal()" class="text-xs text-indigo-600 hover:underline font-medium">+ เพิ่มหน่วยใหม่</button>
+              <button type="button" onclick="openAddUnitModal('edit-master-unit')" class="text-xs text-indigo-600 hover:underline font-medium">+ เพิ่มหน่วยใหม่</button>
             </div>
             <select id="edit-master-unit" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
             </select>
@@ -322,7 +422,7 @@
     <div id="unit-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
       <div class="bg-white w-full max-w-xs rounded-2xl p-4 space-y-3">
         <h3 class="font-bold text-slate-800 text-sm">เพิ่มหน่วยนับใหม่</h3>
-        <input type="text" id="new-unit-input" placeholder="เช่น ถุง, ลัง, แพ็ค, ชิ้น" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+        <input type="text" id="new-unit-input" maxlength="30" onkeydown="if (event.key === 'Enter') { event.preventDefault(); saveNewUnit(); }" placeholder="เช่น ถุง, ลัง, แพ็ค, ชิ้น" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
         <div class="flex justify-end space-x-2">
           <button onclick="closeAddUnitModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg">ยกเลิก</button>
           <button onclick="saveNewUnit()" class="px-3 py-1.5 text-xs bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700">เพิ่มหน่วย</button>
@@ -341,6 +441,18 @@
         </div>
         
         <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
+          <!-- บัญชีที่ล็อกอินอยู่ -->
+          <div id="account-box" class="hidden bg-slate-50 p-3 rounded-xl border border-slate-200 items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-[10px] text-slate-400">เข้าสู่ระบบเป็น</p>
+              <p id="account-name" class="font-bold text-slate-800 truncate"></p>
+              <p id="account-id" class="font-mono text-[10px] text-slate-500"></p>
+            </div>
+            <button onclick="logout()" class="shrink-0 bg-red-50 hover:bg-red-100 text-red-600 font-bold px-3 py-2 rounded-lg transition">
+              <i class="fa-solid fa-right-from-bracket mr-1"></i> ออกจากระบบ
+            </button>
+          </div>
+
           <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
             <h4 class="font-bold text-emerald-900 mb-1">1. ระบบคลังข้อมูลหลัก (Supabase / LocalStorage)</h4>
             <p>
@@ -349,8 +461,15 @@
           </div>
 
           <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-200">
-            <h4 class="font-bold text-indigo-900 mb-1">2. ระบบเก็บรูปภาพ (Discord Webhook)</h4>
-            <p>รูปภาพสินค้าทั้งหมดจะถูกส่งไปเก็บไว้บนเซิร์ฟเวอร์ Discord ของคุณฟรี ไม่ต้องเสียค่าโฮสติ้ง</p>
+            <h4 class="font-bold text-indigo-900 mb-1">2. ระบบเก็บรูปภาพ (Supabase Storage)</h4>
+            <p>รูปภาพสินค้าจะถูกย่อขนาดแล้วเก็บใน Supabase Storage (หากใช้โหมด LocalStorage จะเก็บรูปขนาดเล็กไว้ในเครื่องนี้)</p>
+          </div>
+
+          <div class="bg-amber-50 p-3 rounded-xl border border-amber-200">
+            <h4 class="font-bold text-amber-900 mb-1">3. ติดตั้งเป็นแอป & ใช้ตอนไม่มีเน็ต</h4>
+            <p><b>Android (Chrome):</b> กดปุ่ม "ติดตั้ง" ที่หน้าฟีด หรือเมนู ⋮ → "ติดตั้งแอป"</p>
+            <p><b>iPhone (Safari):</b> กดปุ่มแชร์ <i class="fa-solid fa-arrow-up-from-bracket"></i> → "เพิ่มไปยังหน้าจอโฮม"</p>
+            <p class="mt-1">ตอนไม่มีเน็ต แอปจะแสดงข้อมูลล่าสุดที่เคยโหลดไว้ (ดูได้อย่างเดียว บันทึก/แก้ไขต้องต่อเน็ต)</p>
           </div>
         </div>
 
@@ -415,10 +534,125 @@
             <p id="detail-note" class="text-xs text-amber-900 leading-relaxed font-normal">ไม่มีหมายเหตุเพิ่มเติม</p>
           </div>
 
-          <button onclick="closeDetailModal()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium p-3 rounded-xl text-xs shadow-md active:scale-98 transition">
-            ปิดหน้าต่าง
+          <!-- Actions (แก้ไข / จัดการแล้ว / ย้อนกลับ / ลบ) rendered by JS -->
+          <div id="detail-actions" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Handle Expiry Log Modal (จัดการแล้ว) -->
+    <div id="handle-modal" class="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 hidden">
+      <div class="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+          <div class="min-w-0">
+            <h3 class="font-bold text-slate-800 text-base flex items-center">
+              <i class="fa-solid fa-circle-check text-emerald-600 mr-2"></i> จัดการรายการนี้
+            </h3>
+            <p id="handle-product-name" class="text-xs text-slate-500 mt-0.5 truncate"></p>
+          </div>
+          <button type="button" onclick="closeHandleModal()" class="text-slate-400 hover:text-slate-600 shrink-0">
+            <i class="fa-solid fa-xmark text-lg"></i>
           </button>
         </div>
+
+        <div>
+          <p class="text-xs font-semibold text-slate-600 mb-2">สินค้านี้ถูกจัดการอย่างไร? <span class="text-red-500">*</span></p>
+          <div id="handle-status-options" class="grid grid-cols-2 gap-2"></div>
+        </div>
+
+        <div>
+          <label for="handle-qty" class="block text-xs font-semibold text-slate-600 mb-1">จำนวนที่จัดการ (มีทั้งหมด <span id="handle-total-qty">0</span>)</label>
+          <input type="number" id="handle-qty" min="1" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+          <p class="text-[10px] text-slate-400 mt-1">ถ้าจัดการไม่หมด จำนวนที่เหลือจะยังอยู่ในรายการปัจจุบัน</p>
+        </div>
+
+        <div class="flex space-x-2 pt-1">
+          <button type="button" onclick="closeHandleModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold p-3 rounded-xl text-xs transition">ยกเลิก</button>
+          <button type="button" id="handle-confirm-btn" onclick="confirmHandle()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3 rounded-xl text-xs shadow-md transition disabled:opacity-60">ยืนยัน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Expiry Log Modal (แก้ไขรายการหมดอายุ) -->
+    <div id="edit-log-modal" class="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 hidden">
+      <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <form id="edit-log-form" onsubmit="handleUpdateExpiryLog(event)" class="space-y-3">
+          <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+            <div class="min-w-0">
+              <h3 class="font-bold text-slate-800 text-base flex items-center">
+                <i class="fa-solid fa-pen-to-square text-indigo-600 mr-2"></i> แก้ไขรายการหมดอายุ
+              </h3>
+              <p id="edit-log-product" class="text-xs text-slate-500 mt-0.5 truncate"></p>
+            </div>
+            <button type="button" onclick="closeEditLogModal()" class="text-slate-400 hover:text-slate-600 shrink-0">
+              <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+          </div>
+
+          <div>
+            <label for="edit-log-qty" class="block text-xs font-semibold text-slate-600 mb-1">จำนวน <span class="text-red-500">*</span></label>
+            <input type="number" id="edit-log-qty" min="1" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
+
+          <div>
+            <label for="edit-log-exp" class="block text-xs font-semibold text-slate-600 mb-1">วันหมดอายุ <span class="text-red-500">*</span></label>
+            <input type="date" id="edit-log-exp" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
+          </div>
+
+          <div>
+            <label for="edit-log-note" class="block text-xs font-semibold text-slate-600 mb-1">หมายเหตุ</label>
+            <textarea id="edit-log-note" rows="2" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+          </div>
+
+          <div class="flex space-x-2 pt-1">
+            <button type="button" onclick="closeEditLogModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold p-3 rounded-xl text-xs transition">ยกเลิก</button>
+            <button type="submit" id="edit-log-save-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3 rounded-xl text-xs shadow-md transition disabled:opacity-60">บันทึกการแก้ไข</button>
+          </div>
+
+          <button type="button" onclick="deleteFromEditLogModal()" class="w-full text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg py-2 transition">
+            <i class="fa-solid fa-trash-can mr-1"></i> ลบรายการนี้ (กรณีบันทึกผิด)
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Export Modal (ส่งออก Excel / CSV) -->
+    <div id="export-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-slate-800 text-base flex items-center">
+            <i class="fa-solid fa-file-arrow-down text-emerald-600 mr-2"></i> ส่งออกข้อมูล
+          </h3>
+          <button onclick="closeExportModal()" class="text-slate-400 hover:text-slate-600" aria-label="ปิด">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <div class="space-y-2">
+          <p class="text-xs font-semibold text-slate-600">เลือกข้อมูลที่ต้องการ</p>
+          <label class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3 cursor-pointer">
+            <span class="flex items-center text-xs text-slate-700"><input type="checkbox" id="export-active" checked class="mr-2 accent-emerald-600 w-4 h-4"> รายการปัจจุบัน</span>
+            <span id="export-count-active" class="text-[11px] text-slate-400">0 รายการ</span>
+          </label>
+          <label class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3 cursor-pointer">
+            <span class="flex items-center text-xs text-slate-700"><input type="checkbox" id="export-history" checked class="mr-2 accent-emerald-600 w-4 h-4"> ประวัติการจัดการ</span>
+            <span id="export-count-history" class="text-[11px] text-slate-400">0 รายการ</span>
+          </label>
+          <label class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3 cursor-pointer">
+            <span class="flex items-center text-xs text-slate-700"><input type="checkbox" id="export-master" class="mr-2 accent-emerald-600 w-4 h-4"> สินค้าหลัก</span>
+            <span id="export-count-master" class="text-[11px] text-slate-400">0 รายการ</span>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button id="export-xlsx-btn" onclick="exportData('xlsx')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3 rounded-xl text-xs shadow-md transition disabled:opacity-60">
+            <i class="fa-solid fa-file-excel mr-1"></i> Excel (.xlsx)
+          </button>
+          <button id="export-csv-btn" onclick="exportData('csv')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold p-3 rounded-xl text-xs transition disabled:opacity-60">
+            <i class="fa-solid fa-file-csv mr-1"></i> CSV
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-400 leading-relaxed">Excel: ได้ไฟล์เดียว แยกชีตตามหัวข้อ · CSV: ได้ไฟล์แยกตามหัวข้อ (เปิดใน Excel/Google Sheets ได้ ภาษาไทยไม่เพี้ยน)</p>
       </div>
     </div>
 
@@ -434,10 +668,13 @@
 
   <!-- JavaScript Scripts -->
   <script>
-    // Config: Fixed Webhook & Supabase
-    const DEFAULT_DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1565364337328136233/oHC_lwNOe1ybeE_4MwgLvG9dTYDPQtcP20eGkOvphYDl6HmUz5s9TfG05tiZ4tiljWXl"; // ใส่ Webhook ของคุณตรงนี้
+    // Config: Supabase (ฐานข้อมูล + ที่เก็บรูปภาพ)
+    // หมายเหตุ: publishable/anon key เปิดเผยได้ แต่ต้องเปิด RLS ในตารางเสมอ
     const SUPABASE_URL = "https://kgrubopqhucxpwfxryqt.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_eKQ2huS3TK05i17f6xnGkQ_CSZxlk-r";
+    const SUPABASE_IMAGE_BUCKET = "product-images"; // สร้าง bucket ด้วยไฟล์ supabase-setup.sql
+    const PLACEHOLDER_IMG = 'https://placehold.co/100x100/e2e8f0/64748b?text=No+Img';
+    const PLACEHOLDER_IMG_LG = 'https://placehold.co/400x400/e2e8f0/64748b?text=No+Img';
 
     let supabaseClient = null;
     if (typeof supabase !== 'undefined' && SUPABASE_URL !== "https://your-supabase-url.supabase.co" && SUPABASE_ANON_KEY !== "your-anon-key") {
@@ -448,13 +685,108 @@
       }
     }
 
-    // Dynamic Unit Customization
+    // ---------- Helpers ----------
+    // ป้องกัน XSS: escape ทุกค่าที่มาจากผู้ใช้/ฐานข้อมูลก่อนใส่ลง HTML
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // อนุญาตเฉพาะรูปจาก https หรือ data:image เท่านั้น
+    function safeImageUrl(url, fallback = PLACEHOLDER_IMG) {
+      if (typeof url !== 'string' || !url) return fallback;
+      if (/^https:\/\//i.test(url) || /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(url)) return url;
+      return fallback;
+    }
+
+    // วันที่วันนี้ตามเวลาเครื่อง (ไม่ใช่ UTC) รูปแบบ YYYY-MM-DD
+    function todayLocalISO() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    // จำนวนวันจากวันนี้ถึงวันหมดอายุ (ติดลบ = หมดอายุแล้ว)
+    function daysUntil(dateStr) {
+      const [y, m, d] = String(dateStr || '').split('-').map(Number);
+      const exp = new Date(y, (m || 1) - 1, d || 1);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return Math.round((exp - today) / 86400000);
+    }
+
+    function readLocal(key) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        console.warn(`อ่าน LocalStorage "${key}" ไม่ได้:`, err);
+        return [];
+      }
+    }
+
+    function setDbBadge(mode) {
+      const text = document.getElementById('db-mode-text');
+      if (!text) return;
+      if (mode === 'error') text.textContent = 'เชื่อมต่อไม่ได้';
+      else if (mode === 'offline') text.textContent = 'ออฟไลน์';
+      else text.textContent = supabaseClient ? 'Supabase' : 'Local (เครื่องนี้)';
+    }
+
+    // วันที่และเวลาตามเครื่อง รูปแบบ YYYY-MM-DD HH:mm
+    function formatDateTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d)) return '';
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+
+    // เก็บสำเนาข้อมูลล่าสุดจาก Supabase ไว้ในเครื่อง เพื่อเปิดดูตอนออฟไลน์
+    const OFFLINE_SNAPSHOT_KEY = 'offline_snapshot';
+    function saveOfflineSnapshot() {
+      try {
+        localStorage.setItem(OFFLINE_SNAPSHOT_KEY, JSON.stringify({
+          savedAt: new Date().toISOString(),
+          masters: window.masterProducts,
+          logs: window.expiryLogs
+        }));
+      } catch (err) {
+        console.warn('บันทึกสำเนาออฟไลน์ไม่ได้:', err);
+      }
+    }
+    function loadOfflineSnapshot() {
+      try {
+        const snap = JSON.parse(localStorage.getItem(OFFLINE_SNAPSHOT_KEY) || 'null');
+        if (snap && Array.isArray(snap.masters) && Array.isArray(snap.logs)) return snap;
+      } catch (err) {
+        console.warn('อ่านสำเนาออฟไลน์ไม่ได้:', err);
+      }
+      return null;
+    }
+
+    // Dynamic Unit Customization (เก็บหน่วยที่เพิ่มเองไว้ใน LocalStorage)
     function populateUnitOptions() {
       const select = document.getElementById('master-unit');
       const editSelect = document.getElementById('edit-master-unit');
-      const options = window.units.map(u => `<option value="${u}">${u}</option>`).join('');
-      if (select) select.innerHTML = options;
-      if (editSelect) editSelect.innerHTML = options;
+      const options = window.units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+      [select, editSelect].forEach(el => {
+        if (!el) return;
+        const prev = el.value;
+        el.innerHTML = options;
+        if (prev && window.units.includes(prev)) el.value = prev;
+      });
+    }
+
+    // รวมหน่วยที่สินค้าในฐานข้อมูลใช้อยู่ เพื่อให้แก้ไขสินค้าจากเครื่องอื่นได้ถูกหน่วย
+    function mergeUnitsFromProducts() {
+      (window.masterProducts || []).forEach(p => {
+        if (p.unit && !window.units.includes(p.unit)) window.units.push(p.unit);
+      });
+      populateUnitOptions();
     }
 
     // Database Operations Layer (Supabase / Fallback LocalStorage)
@@ -466,7 +798,7 @@
             .upsert(productData, { onConflict: 'barcode' });
           if (error) throw error;
         } else {
-          let localMasters = JSON.parse(localStorage.getItem('master_products') || '[]');
+          const localMasters = readLocal('master_products');
           const idx = localMasters.findIndex(p => p.barcode === productData.barcode);
           if (idx >= 0) localMasters[idx] = productData;
           else localMasters.push(productData);
@@ -474,16 +806,24 @@
           window.masterProducts = localMasters;
         }
       },
+      // ลบสินค้าหลัก พร้อมรายการหมดอายุของบาร์โค้ดนั้น (ไม่ให้เหลือรายการ "ไม่ทราบชื่อสินค้า")
       deleteMasterProduct: async (barcode) => {
         if (supabaseClient) {
+          const { error: logErr } = await supabaseClient
+            .from('expiry_logs')
+            .delete()
+            .eq('barcode', barcode);
+          if (logErr) throw logErr;
           const { error } = await supabaseClient
             .from('master_products')
             .delete()
             .eq('barcode', barcode);
           if (error) throw error;
         } else {
-          let localMasters = JSON.parse(localStorage.getItem('master_products') || '[]');
-          localMasters = localMasters.filter(p => p.barcode !== barcode);
+          const localLogs = readLocal('expiry_logs').filter(l => l.barcode !== barcode);
+          localStorage.setItem('expiry_logs', JSON.stringify(localLogs));
+          window.expiryLogs = localLogs;
+          const localMasters = readLocal('master_products').filter(p => p.barcode !== barcode);
           localStorage.setItem('master_products', JSON.stringify(localMasters));
           window.masterProducts = localMasters;
         }
@@ -495,8 +835,30 @@
             .insert(logData);
           if (error) throw error;
         } else {
-          let localLogs = JSON.parse(localStorage.getItem('expiry_logs') || '[]');
+          const localLogs = readLocal('expiry_logs');
           localLogs.push(logData);
+          localStorage.setItem('expiry_logs', JSON.stringify(localLogs));
+          window.expiryLogs = localLogs;
+        }
+      },
+      // แก้ไขบางฟิลด์ของรายการหมดอายุ (จำนวน/วันที่/หมายเหตุ/สถานะ)
+      updateExpiryLog: async (id, fields) => {
+        if (supabaseClient) {
+          const { data, error } = await supabaseClient
+            .from('expiry_logs')
+            .update(fields)
+            .eq('id', id)
+            .select('id');
+          if (error) throw error;
+          // RLS ที่ไม่อนุญาต UPDATE จะไม่แจ้ง error แต่จะไม่มีแถวถูกแก้
+          if (!data || data.length === 0) {
+            throw new Error('ไม่มีสิทธิ์แก้ไข หรือไม่พบรายการ (ตรวจ RLS policy แบบ UPDATE ของตาราง expiry_logs)');
+          }
+        } else {
+          const localLogs = readLocal('expiry_logs');
+          const idx = localLogs.findIndex(l => l.id === id);
+          if (idx < 0) throw new Error('ไม่พบรายการ');
+          localLogs[idx] = { ...localLogs[idx], ...fields };
           localStorage.setItem('expiry_logs', JSON.stringify(localLogs));
           window.expiryLogs = localLogs;
         }
@@ -509,22 +871,45 @@
             .eq('id', id);
           if (error) throw error;
         } else {
-          let localLogs = JSON.parse(localStorage.getItem('expiry_logs') || '[]');
-          localLogs = localLogs.filter(l => l.id !== id);
+          const localLogs = readLocal('expiry_logs').filter(l => l.id !== id);
           localStorage.setItem('expiry_logs', JSON.stringify(localLogs));
           window.expiryLogs = localLogs;
         }
       },
       fetchData: async () => {
-        if (supabaseClient) {
-          const { data: masters } = await supabaseClient.from('master_products').select('*');
-          const { data: logs } = await supabaseClient.from('expiry_logs').select('*');
-          if (masters) window.masterProducts = masters;
-          if (logs) window.expiryLogs = logs;
-        } else {
-          window.masterProducts = JSON.parse(localStorage.getItem('master_products') || '[]');
-          window.expiryLogs = JSON.parse(localStorage.getItem('expiry_logs') || '[]');
+        // โหมด Supabase ต้องล็อกอินก่อนจึงจะโหลดข้อมูล
+        if (supabaseClient && !window.currentUser) return;
+        try {
+          if (supabaseClient) {
+            const [mastersRes, logsRes] = await Promise.all([
+              supabaseClient.from('master_products').select('*'),
+              supabaseClient.from('expiry_logs').select('*')
+            ]);
+            if (mastersRes.error) throw mastersRes.error;
+            if (logsRes.error) throw logsRes.error;
+            window.masterProducts = mastersRes.data || [];
+            window.expiryLogs = logsRes.data || [];
+            saveOfflineSnapshot();
+          } else {
+            window.masterProducts = readLocal('master_products');
+            window.expiryLogs = readLocal('expiry_logs');
+          }
+          setDbBadge('ok');
+        } catch (err) {
+          console.error('Fetch data error:', err);
+          const snapshot = supabaseClient ? loadOfflineSnapshot() : null;
+          if (snapshot) {
+            // ไม่มีเน็ต/ต่อ Supabase ไม่ได้: แสดงข้อมูลล่าสุดที่เคยโหลดไว้
+            window.masterProducts = snapshot.masters;
+            window.expiryLogs = snapshot.logs;
+            setDbBadge('offline');
+            showToast(`ออฟไลน์ — แสดงข้อมูลล่าสุดเมื่อ ${formatDateTime(snapshot.savedAt)}`, 'info');
+          } else {
+            setDbBadge('error');
+            showToast('โหลดข้อมูลไม่สำเร็จ: ' + (err.message || err), 'error');
+          }
         }
+        mergeUnitsFromProducts();
         if (window.renderMasterList) window.renderMasterList();
         if (window.renderFeedList) window.renderFeedList();
       }
@@ -533,29 +918,34 @@
 
   <script>
     // State Management
-    window.units = ['ชิ้น', 'แพ็ค', 'ถุง', 'ลัง', 'กล่อง', 'ขวด', 'กระป๋อง'];
+    const DEFAULT_UNITS = ['ชิ้น', 'แพ็ค', 'ถุง', 'ลัง', 'กล่อง', 'ขวด', 'กระป๋อง'];
+    window.units = [...DEFAULT_UNITS];
+    readLocal('custom_units').forEach(u => {
+      if (typeof u === 'string' && u && !window.units.includes(u)) window.units.push(u);
+    });
     window.masterProducts = [];
     window.expiryLogs = [];
     let html5QrcodeScanner = null;
     let targetBarcodeFieldId = null;
     let editingMasterBarcode = null;
+    let unitModalTargetId = 'master-unit';
+    let toastTimer = null;
 
     // Initialize Page
     document.addEventListener('DOMContentLoaded', async () => {
-      document.getElementById('log-exp-date').value = new Date().toISOString().split('T')[0];
+      document.getElementById('log-exp-date').value = todayLocalISO();
       populateUnitOptions();
 
-      if (window.dbOps && window.dbOps.fetchData) {
-        await window.dbOps.fetchData();
-      } else {
-        renderFeedList();
-        renderMasterList();
-      }
+      renderFeedList();
+      renderMasterList();
+      await initAuthAndLoad();
       updateDashboardStats();
     });
 
-    function openAddUnitModal() {
+    function openAddUnitModal(targetSelectId = 'master-unit') {
+      unitModalTargetId = targetSelectId;
       document.getElementById('unit-modal').classList.remove('hidden');
+      document.getElementById('new-unit-input').focus();
     }
 
     function closeAddUnitModal() {
@@ -566,12 +956,26 @@
     function saveNewUnit() {
       const input = document.getElementById('new-unit-input');
       const val = input.value.trim();
-      if (val && !window.units.includes(val)) {
+      if (!val) {
+        closeAddUnitModal();
+        return;
+      }
+      if (!window.units.includes(val)) {
         window.units.push(val);
+        const custom = readLocal('custom_units');
+        if (!custom.includes(val)) {
+          custom.push(val);
+          try {
+            localStorage.setItem('custom_units', JSON.stringify(custom));
+          } catch (err) {
+            console.warn('บันทึกหน่วยนับลงเครื่องไม่ได้:', err);
+          }
+        }
         populateUnitOptions();
-        document.getElementById('master-unit').value = val;
         showToast(`เพิ่มหน่วยนับ "${val}" เรียบร้อยแล้ว`, 'success');
       }
+      const target = document.getElementById(unitModalTargetId);
+      if (target) target.value = val;
       closeAddUnitModal();
     }
 
@@ -594,6 +998,7 @@
     }
 
     function startScanner(fieldId) {
+      if (html5QrcodeScanner) return; // กันเปิดกล้องซ้อน
       targetBarcodeFieldId = fieldId;
       document.getElementById('scanner-modal').classList.remove('hidden');
       
@@ -618,10 +1023,13 @@
 
     function stopScanner() {
       if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop().then(() => {
-          html5QrcodeScanner.clear();
+        const scanner = html5QrcodeScanner;
+        html5QrcodeScanner = null;
+        scanner.stop().then(() => {
+          scanner.clear();
           document.getElementById('scanner-modal').classList.add('hidden');
         }).catch(() => {
+          try { scanner.clear(); } catch (e) { /* ignore */ }
           document.getElementById('scanner-modal').classList.add('hidden');
         });
       } else {
@@ -636,7 +1044,7 @@
       if (product) {
         document.getElementById('preview-p-name').textContent = product.name;
         document.getElementById('preview-p-unit').textContent = product.unit;
-        document.getElementById('preview-p-img').src = product.imageUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=No+Img';
+        document.getElementById('preview-p-img').src = safeImageUrl(product.imageUrl);
         previewBox.classList.remove('hidden');
       } else {
         previewBox.classList.add('hidden');
@@ -669,48 +1077,58 @@
       }
     }
 
-    async function uploadImageToDiscord(file, productInfo) {
-      try {
-        const webhookUrl = DEFAULT_DISCORD_WEBHOOK;
-        if (!webhookUrl || webhookUrl.includes("YOUR_DISCORD_WEBHOOK")) {
-          console.warn("Discord Webhook URL not set correctly");
-          return null;
-        }
-
-        const formData = new FormData();
-        formData.append('file', file, file.name);
-
-        const embedData = {
-          title: "📦 บันทึกรูปภาพสินค้าใหม่",
-          color: 3066993,
-          fields: [
-            { name: "ชื่อสินค้า", value: productInfo.name || "-", inline: true },
-            { name: "บาร์โค้ด", value: productInfo.barcode || "-", inline: true },
-            { name: "หน่วยนับ", value: productInfo.unit || "-", inline: true }
-          ],
-          timestamp: new Date().toISOString()
+    // ย่อรูปให้เล็กลงก่อนเก็บ (ประหยัดพื้นที่และโหลดเร็วขึ้น) ได้ผลเป็น JPEG Blob
+    function resizeImage(file, maxSize, quality) {
+      return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff'; // พื้นขาวสำหรับ PNG โปร่งใส
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('แปลงรูปภาพไม่สำเร็จ')), 'image/jpeg', quality);
         };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('ไฟล์รูปภาพไม่ถูกต้อง'));
+        };
+        img.src = objectUrl;
+      });
+    }
 
-        formData.append('payload_json', JSON.stringify({ embeds: [embedData] }));
+    // อัปโหลดรูปสินค้า: Supabase Storage (ลิงก์ถาวร) หรือ data URL ขนาดเล็กเมื่อใช้ LocalStorage
+    async function uploadProductImage(file, barcode) {
+      if (supabaseClient) {
+        const blob = await resizeImage(file, 1000, 0.85);
+        const safeName = String(barcode).replace(/[^a-zA-Z0-9_-]/g, '_') || 'product';
+        const path = `${safeName}_${Date.now()}.jpg`;
+        const bucket = supabaseClient.storage.from(SUPABASE_IMAGE_BUCKET);
+        const { error } = await bucket.upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+        if (error) throw error;
+        return bucket.getPublicUrl(path).data.publicUrl;
+      }
+      const blob = await resizeImage(file, 400, 0.7);
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('อ่านไฟล์รูปไม่สำเร็จ'));
+        reader.readAsDataURL(blob);
+      });
+    }
 
-        const response = await fetch(webhookUrl, {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          throw new Error('Discord Webhook Upload Failed');
-        }
-
-        const resData = await response.json();
-        if (resData.attachments && resData.attachments[0]) {
-          return resData.attachments[0].url;
-        }
-        return null;
+    async function uploadOrThrow(file, barcode) {
+      showToast('กำลังอัปโหลดรูปภาพ...', 'info');
+      try {
+        return await uploadProductImage(file, barcode);
       } catch (err) {
-        console.error('Discord Upload Error:', err);
-        showToast('อัปโหลดภาพไป Discord ไม่สำเร็จ: ' + err.message, 'error');
-        return null;
+        console.error('Image upload error:', err);
+        throw new Error('อัปโหลดรูปไม่สำเร็จ (' + (err.message || err) + ') ข้อมูลยังไม่ถูกบันทึก');
       }
     }
 
@@ -726,19 +1144,18 @@
       document.getElementById('master-save-text').textContent = 'กำลังบันทึก...';
 
       try {
-        let imageUrl = null;
-        const masterData = { barcode, name, unit, imageUrl };
-
-        await window.dbOps.saveMasterProduct(masterData);
-
-        if (fileInput.files && fileInput.files[0]) {
-          showToast('กำลังอัปโหลดรูปภาพไปยัง Discord...', 'info');
-          const uploadedUrl = await uploadImageToDiscord(fileInput.files[0], { barcode, name, unit });
-          if (uploadedUrl) {
-            masterData.imageUrl = uploadedUrl;
-            await window.dbOps.saveMasterProduct(masterData);
-          }
+        // ถ้าบาร์โค้ดซ้ำ ให้ยืนยันก่อน และคงรูปเดิมไว้ถ้าไม่ได้เลือกรูปใหม่
+        const existing = window.masterProducts.find(p => p.barcode === barcode);
+        if (existing && !confirm(`บาร์โค้ด ${barcode} มีอยู่แล้ว (${existing.name}) ต้องการบันทึกทับหรือไม่?`)) {
+          return;
         }
+
+        let imageUrl = existing ? (existing.imageUrl || null) : null;
+        if (fileInput.files && fileInput.files[0]) {
+          imageUrl = await uploadOrThrow(fileInput.files[0], barcode);
+        }
+
+        await window.dbOps.saveMasterProduct({ barcode, name, unit, imageUrl });
 
         showToast('บันทึกข้อมูลสินค้าหลักเรียบร้อยแล้ว!', 'success');
         resetMasterForm();
@@ -764,9 +1181,17 @@
         showToast('ไม่พบรหัสบาร์โค้ดนี้ในคลังสินค้าหลัก! กรุณาลงทะเบียนสินค้าในหน้าที่ 3 ก่อน', 'error');
         return;
       }
+      if (!Number.isInteger(qty) || qty < 1) {
+        showToast('กรุณาใส่จำนวนเป็นตัวเลขตั้งแต่ 1 ขึ้นไป', 'error');
+        return;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expDate)) {
+        showToast('กรุณาเลือกวันหมดอายุให้ถูกต้อง', 'error');
+        return;
+      }
 
       const logData = {
-        id: 'LOG_' + Date.now(),
+        id: newLogId(),
         barcode,
         qty,
         expDate,
@@ -779,7 +1204,7 @@
         showToast('บันทึกวันหมดอายุสำเร็จ!', 'success');
         
         document.getElementById('expiry-form').reset();
-        document.getElementById('log-exp-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('log-exp-date').value = todayLocalISO();
         document.getElementById('product-master-preview').classList.add('hidden');
 
         await window.dbOps.fetchData();
@@ -802,7 +1227,7 @@
       document.getElementById('edit-master-unit').value = product.unit;
 
       const preview = document.getElementById('edit-image-preview');
-      preview.src = product.imageUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=No+Img';
+      preview.src = safeImageUrl(product.imageUrl);
 
       document.getElementById('edit-master-modal').classList.remove('hidden');
     }
@@ -826,19 +1251,12 @@
 
       try {
         const existing = window.masterProducts.find(p => p.barcode === barcode);
-        let imageUrl = existing ? existing.imageUrl : null;
-
-        const masterData = { barcode, name, unit, imageUrl };
-        await window.dbOps.saveMasterProduct(masterData);
-
+        let imageUrl = existing ? (existing.imageUrl || null) : null;
         if (fileInput.files && fileInput.files[0]) {
-          showToast('กำลังอัปโหลดรูปภาพใหม่ไปยัง Discord...', 'info');
-          const uploadedUrl = await uploadImageToDiscord(fileInput.files[0], { barcode, name, unit });
-          if (uploadedUrl) {
-            masterData.imageUrl = uploadedUrl;
-            await window.dbOps.saveMasterProduct(masterData);
-          }
+          imageUrl = await uploadOrThrow(fileInput.files[0], barcode);
         }
+
+        await window.dbOps.saveMasterProduct({ barcode, name, unit, imageUrl });
 
         showToast('อัปเดตข้อมูลสินค้าเรียบร้อยแล้ว!', 'success');
         closeEditMasterModal();
@@ -860,25 +1278,38 @@
 
     function renderMasterList() {
       const container = document.getElementById('master-products-list');
-      if (!window.masterProducts || window.masterProducts.length === 0) {
+      const countEl = document.getElementById('master-count');
+      const all = window.masterProducts || [];
+      if (countEl) countEl.textContent = all.length ? `(${all.length})` : '';
+      if (all.length === 0) {
         container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">ยังไม่มีข้อมูลสินค้าในระบบ</p>`;
         return;
       }
 
-      container.innerHTML = window.masterProducts.map(p => `
+      const query = normalizeText(document.getElementById('master-search').value);
+      const products = query
+        ? all.filter(p => normalizeText(p.name).includes(query) || normalizeText(p.barcode).includes(query))
+        : all;
+
+      if (products.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">ไม่พบสินค้าที่ตรงกับ "${escapeHtml(query)}"</p>`;
+        return;
+      }
+
+      container.innerHTML = products.map(p => `
         <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between">
           <div class="flex items-center space-x-3 min-w-0">
-            <img src="${p.imageUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=No+Img'}" class="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0">
+            <img src="${escapeHtml(safeImageUrl(p.imageUrl))}" class="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0">
             <div class="min-w-0">
-              <h4 class="font-bold text-slate-800 text-xs truncate">${p.name}</h4>
-              <p class="text-[10px] text-slate-500 font-mono">บาร์โค้ด: ${p.barcode} | หน่วย: ${p.unit}</p>
+              <h4 class="font-bold text-slate-800 text-xs truncate">${escapeHtml(p.name)}</h4>
+              <p class="text-[10px] text-slate-500 font-mono">บาร์โค้ด: ${escapeHtml(p.barcode)} | หน่วย: ${escapeHtml(p.unit)}</p>
             </div>
           </div>
           <div class="flex items-center space-x-1 shrink-0">
-            <button onclick="editMasterProduct('${p.barcode}')" class="text-slate-400 hover:text-indigo-600 p-2 transition" title="แก้ไขสินค้า">
+            <button data-barcode="${escapeHtml(p.barcode)}" onclick="editMasterProduct(this.dataset.barcode)" class="text-slate-400 hover:text-indigo-600 p-2 transition" title="แก้ไขสินค้า">
               <i class="fa-solid fa-pen-to-square text-sm"></i>
             </button>
-            <button onclick="deleteMasterProduct('${p.barcode}')" class="text-slate-400 hover:text-red-500 p-2 transition" title="ลบสินค้า">
+            <button data-barcode="${escapeHtml(p.barcode)}" onclick="deleteMasterProduct(this.dataset.barcode)" class="text-slate-400 hover:text-red-500 p-2 transition" title="ลบสินค้า">
               <i class="fa-solid fa-trash-can text-sm"></i>
             </button>
           </div>
@@ -887,7 +1318,11 @@
     }
 
     async function deleteMasterProduct(barcode) {
-      if (confirm('ยืนยันการลบสินค้าหลักรายการนี้?')) {
+      const relatedCount = (window.expiryLogs || []).filter(l => l.barcode === barcode).length;
+      const msg = relatedCount > 0
+        ? `ยืนยันการลบสินค้าหลักรายการนี้?\nรายการบันทึกหมดอายุของสินค้านี้ ${relatedCount} รายการจะถูกลบไปด้วย`
+        : 'ยืนยันการลบสินค้าหลักรายการนี้?';
+      if (confirm(msg)) {
         try {
           await window.dbOps.deleteMasterProduct(barcode);
           showToast('ลบรายการสินค้าหลักเรียบร้อย', 'success');
@@ -898,113 +1333,401 @@
       }
     }
 
+    // ---------- สถานะ "จัดการแล้ว" และประวัติ ----------
+    const HANDLE_STATUSES = {
+      sold:      { label: 'ขายหมดแล้ว',     icon: 'fa-cash-register',  badge: 'bg-emerald-100 text-emerald-700', solid: 'bg-emerald-600' },
+      discount:  { label: 'ขายลดราคา',       icon: 'fa-tags',           badge: 'bg-sky-100 text-sky-700',         solid: 'bg-sky-600' },
+      discarded: { label: 'ทิ้ง / เสียหาย',   icon: 'fa-dumpster',       badge: 'bg-red-100 text-red-700',         solid: 'bg-red-600' },
+      returned:  { label: 'คืนซัพพลายเออร์',  icon: 'fa-truck-ramp-box', badge: 'bg-violet-100 text-violet-700',   solid: 'bg-violet-600' }
+    };
+    const VIEW_TAB_ACTIVE = 'flex-1 py-2 rounded-lg text-xs font-bold bg-white text-emerald-700 shadow-sm transition';
+    const VIEW_TAB_INACTIVE = 'flex-1 py-2 rounded-lg text-xs font-medium text-slate-500 transition';
+    let feedView = 'active';
+    let handlingLogId = null;
+    let handleSelectedStatus = null;
+    let editingLogId = null;
+
+    // ไม่มี status (รายการเก่า/ยังไม่ได้รัน SQL) ถือว่าเป็นรายการปัจจุบัน
+    function isActiveLog(log) {
+      return !log.status || log.status === 'active';
+    }
+
+    function statusMeta(status) {
+      return HANDLE_STATUSES[status] || { label: status || '-', icon: 'fa-circle-question', badge: 'bg-slate-100 text-slate-600', solid: 'bg-slate-600' };
+    }
+
+    function normalizeText(value) {
+      return String(value == null ? '' : value).toLowerCase().trim();
+    }
+
+    function newLogId() {
+      const uniquePart = (window.crypto && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      return 'LOG_' + uniquePart;
+    }
+
+    function formatThaiDate(iso) {
+      if (!iso) return '-';
+      const d = new Date(iso);
+      if (isNaN(d)) return '-';
+      return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+    }
+
+    function findLog(id) {
+      return (window.expiryLogs || []).find(l => l.id === id);
+    }
+
+    function findMaster(barcode) {
+      return (window.masterProducts || []).find(p => p.barcode === barcode) || {};
+    }
+
+    // แปลง error ฐานข้อมูลเป็นข้อความที่อ่านเข้าใจ
+    function dbErrorMessage(err, prefix = 'บันทึกไม่สำเร็จ') {
+      const msg = (err && (err.message || err.details)) || String(err);
+      if ((err && err.code === 'PGRST204') || /column .* (does not exist|not find)|could not find the .* column/i.test(msg)) {
+        return 'ฐานข้อมูลยังไม่มีคอลัมน์สถานะ กรุณารันไฟล์ supabase-setup.sql ใน Supabase ก่อน';
+      }
+      if ((err && err.code === '42501') || /row-level security|permission denied|ไม่มีสิทธิ์/i.test(msg)) {
+        return 'ไม่มีสิทธิ์ทำรายการนี้ (บัญชีอาจถูกระงับ) ลองออกจากระบบแล้วเข้าใหม่';
+      }
+      return `${prefix}: ${msg}`;
+    }
+
+    function expiryState(diffDays) {
+      if (diffDays < 0) return { text: `หมดอายุแล้ว (${Math.abs(diffDays)} วัน)`, badge: 'bg-red-100 text-red-700', border: 'border-red-300 bg-red-50/30', solid: 'bg-red-600' };
+      if (diffDays <= 14) return { text: `ใกล้หมดอายุ (เหลือ ${diffDays} วัน)`, badge: 'bg-amber-100 text-amber-700', border: 'border-amber-300 bg-amber-50/30', solid: 'bg-amber-500' };
+      return { text: `ปกติ (เหลือ ${diffDays} วัน)`, badge: 'bg-emerald-100 text-emerald-700', border: 'border-slate-200', solid: 'bg-emerald-600' };
+    }
+
+    function setFeedView(view) {
+      feedView = view;
+      document.getElementById('feed-view-active').className = view === 'active' ? VIEW_TAB_ACTIVE : VIEW_TAB_INACTIVE;
+      document.getElementById('feed-view-history').className = view === 'history' ? VIEW_TAB_ACTIVE : VIEW_TAB_INACTIVE;
+      document.getElementById('feed-filter').classList.toggle('hidden', view !== 'active');
+      renderFeedList();
+    }
+
+    // สรุปประวัติเดือนนี้ แยกตามวิธีจัดการ
+    function renderHistorySummary(show) {
+      const box = document.getElementById('history-summary');
+      if (!show) {
+        box.classList.add('hidden');
+        box.innerHTML = '';
+        return;
+      }
+      const now = new Date();
+      const counts = {};
+      Object.keys(HANDLE_STATUSES).forEach(k => { counts[k] = 0; });
+      (window.expiryLogs || []).forEach(log => {
+        if (isActiveLog(log) || !log.handledAt) return;
+        const d = new Date(log.handledAt);
+        if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && counts[log.status] !== undefined) {
+          counts[log.status]++;
+        }
+      });
+      const monthName = now.toLocaleDateString('th-TH', { month: 'long' });
+      box.innerHTML = `
+        <p class="text-[11px] font-semibold text-slate-500 mb-1.5">สรุปเดือน${escapeHtml(monthName)}</p>
+        <div class="grid grid-cols-2 gap-2">
+          ${Object.entries(HANDLE_STATUSES).map(([key, meta]) => `
+            <div class="${meta.badge} rounded-xl px-3 py-2 flex items-center justify-between">
+              <span class="text-[11px] font-medium"><i class="fa-solid ${meta.icon} mr-1"></i>${meta.label}</span>
+              <span class="text-sm font-bold">${counts[key]}</span>
+            </div>`).join('')}
+        </div>`;
+      box.classList.remove('hidden');
+    }
+
+    function emptyStateHtml(message, icon = 'fa-box-open') {
+      return `<div class="text-center py-10 text-slate-400">
+        <i class="fa-solid ${icon} text-3xl mb-2"></i>
+        <p class="text-xs">${escapeHtml(message)}</p>
+      </div>`;
+    }
+
+    function renderActiveCard(item) {
+      const state = expiryState(item.diffDays);
+      const pName = escapeHtml(item.master.name || 'ไม่ทราบชื่อสินค้า');
+      const pUnit = escapeHtml(item.master.unit || 'ชิ้น');
+      const pImg = escapeHtml(safeImageUrl(item.master.imageUrl));
+      const safeId = escapeHtml(item.id);
+      return `
+        <div data-id="${safeId}" onclick="openDetailModal(this.dataset.id)" class="bg-white border ${state.border} p-3 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-emerald-400 transition">
+          <div class="flex items-center space-x-3 min-w-0 flex-1">
+            <img src="${pImg}" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shrink-0">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center space-x-2 mb-1">
+                <span class="${state.badge} text-[10px] font-bold px-2 py-0.5 rounded-full">${state.text}</span>
+              </div>
+              <h4 class="font-bold text-slate-800 text-xs truncate">${pName}</h4>
+              <p class="text-[11px] text-slate-500 font-medium">
+                จำนวน: <span class="text-emerald-700 font-bold">${escapeHtml(item.qty)}</span> ${pUnit} | Exp: ${escapeHtml(item.expDate)}
+              </p>
+              ${item.note ? `<p class="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded mt-1 truncate inline-block max-w-full"><i class="fa-regular fa-sticky-note mr-1"></i>${escapeHtml(item.note)}</p>` : ''}
+            </div>
+          </div>
+          <button data-id="${safeId}" onclick="event.stopPropagation(); openHandleModal(this.dataset.id)" class="text-slate-300 hover:text-emerald-600 p-2 transition shrink-0" title="จัดการแล้ว">
+            <i class="fa-regular fa-circle-check text-lg"></i>
+          </button>
+        </div>
+      `;
+    }
+
+    function renderHistoryCard(item) {
+      const meta = statusMeta(item.status);
+      const pName = escapeHtml(item.master.name || 'ไม่ทราบชื่อสินค้า');
+      const pUnit = escapeHtml(item.master.unit || 'ชิ้น');
+      const pImg = escapeHtml(safeImageUrl(item.master.imageUrl));
+      return `
+        <div data-id="${escapeHtml(item.id)}" onclick="openDetailModal(this.dataset.id)" class="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center space-x-3 cursor-pointer hover:border-slate-300 transition">
+          <img src="${pImg}" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shrink-0 opacity-70 grayscale">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center justify-between mb-1 gap-2">
+              <span class="${meta.badge} text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"><i class="fa-solid ${meta.icon} mr-1"></i>${meta.label}</span>
+              <span class="text-[10px] text-slate-400 truncate">${escapeHtml(formatThaiDate(item.handledAt))}</span>
+            </div>
+            <h4 class="font-bold text-slate-600 text-xs truncate">${pName}</h4>
+            <p class="text-[11px] text-slate-400 font-medium">
+              จำนวน: <span class="font-bold text-slate-500">${escapeHtml(item.qty)}</span> ${pUnit} | Exp: ${escapeHtml(item.expDate)}
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
     function renderFeedList() {
       const container = document.getElementById('feed-list');
       const filterValue = document.getElementById('feed-filter').value;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const query = normalizeText(document.getElementById('feed-search').value);
+      const isHistory = feedView === 'history';
 
-      if (!window.expiryLogs || window.expiryLogs.length === 0) {
-        container.innerHTML = `<div class="text-center py-10 text-slate-400">
-          <i class="fa-solid fa-box-open text-3xl mb-2"></i>
-          <p class="text-xs">ยังไม่มีรายการบันทึกวันหมดอายุ</p>
-        </div>`;
+      renderHistorySummary(isHistory);
+
+      const viewLogs = (window.expiryLogs || []).filter(l => isHistory ? !isActiveLog(l) : isActiveLog(l));
+      if (viewLogs.length === 0) {
+        container.innerHTML = isHistory
+          ? emptyStateHtml('ยังไม่มีประวัติ — กดปุ่ม ✓ ที่รายการเมื่อขาย ลดราคา ทิ้ง หรือคืนสินค้าแล้ว', 'fa-clock-rotate-left')
+          : emptyStateHtml('ยังไม่มีรายการบันทึกวันหมดอายุ');
         updateDashboardStats();
         return;
       }
 
-      let logsWithMaster = window.expiryLogs.map(log => {
-        const master = window.masterProducts.find(p => p.barcode === log.barcode) || {};
-        const exp = new Date(log.expDate);
-        exp.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
-        return { ...log, master, diffDays };
-      });
+      let items = viewLogs.map(log => ({ ...log, master: findMaster(log.barcode), diffDays: daysUntil(log.expDate) }));
 
-      if (filterValue === 'expired') {
-        logsWithMaster = logsWithMaster.filter(item => item.diffDays < 0);
-      } else if (filterValue !== 'all') {
-        const daysLimit = parseInt(filterValue);
-        logsWithMaster = logsWithMaster.filter(item => item.diffDays >= 0 && item.diffDays <= daysLimit);
+      if (query) {
+        items = items.filter(item =>
+          [item.master.name, item.barcode, item.note].some(v => normalizeText(v).includes(query))
+        );
       }
 
-      logsWithMaster.sort((a, b) => new Date(a.expDate) - new Date(b.expDate));
-
-      if (logsWithMaster.length === 0) {
-        container.innerHTML = `<div class="text-center py-8 text-slate-400">
-          <p class="text-xs">ไม่พบรายการสินค้าที่ตรงกับเงื่อนไขการกรอง</p>
-        </div>`;
-        updateDashboardStats();
-        return;
-      }
-
-      container.innerHTML = logsWithMaster.map(item => {
-        let statusBadge = '';
-        let borderClass = 'border-slate-200';
-
-        if (item.diffDays < 0) {
-          statusBadge = `<span class="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">หมดอายุแล้ว (${Math.abs(item.diffDays)} วัน)</span>`;
-          borderClass = 'border-red-300 bg-red-50/30';
-        } else if (item.diffDays <= 14) {
-          statusBadge = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">ใกล้หมดอายุ (เหลือ ${item.diffDays} วัน)</span>`;
-          borderClass = 'border-amber-300 bg-amber-50/30';
-        } else {
-          statusBadge = `<span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">ปกติ (เหลือ ${item.diffDays} วัน)</span>`;
+      if (isHistory) {
+        items.sort((a, b) => String(b.handledAt || '').localeCompare(String(a.handledAt || '')));
+      } else {
+        if (filterValue === 'expired') {
+          items = items.filter(item => item.diffDays < 0);
+        } else if (filterValue !== 'all') {
+          const daysLimit = parseInt(filterValue);
+          items = items.filter(item => item.diffDays >= 0 && item.diffDays <= daysLimit);
         }
+        items.sort((a, b) => String(a.expDate).localeCompare(String(b.expDate)));
+      }
 
-        const pName = item.master.name || 'ไม่ทราบชื่อสินค้า';
-        const pUnit = item.master.unit || 'ชิ้น';
-        const pImg = item.master.imageUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=No+Img';
+      if (items.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-slate-400">
+          <p class="text-xs">ไม่พบรายการที่ตรงกับการค้นหาหรือตัวกรอง</p>
+        </div>`;
+        updateDashboardStats();
+        return;
+      }
 
-        return `
-          <div onclick="openDetailModal('${item.id}')" class="bg-white border ${borderClass} p-3 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-emerald-400 transition">
-            <div class="flex items-center space-x-3 min-w-0 flex-1">
-              <img src="${pImg}" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shrink-0">
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center space-x-2 mb-1">
-                  ${statusBadge}
-                </div>
-                <h4 class="font-bold text-slate-800 text-xs truncate">${pName}</h4>
-                <p class="text-[11px] text-slate-500 font-medium">
-                  จำนวน: <span class="text-emerald-700 font-bold">${item.qty}</span> ${pUnit} | Exp: ${item.expDate}
-                </p>
-                ${item.note ? `<p class="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded mt-1 truncate inline-block"><i class="fa-regular fa-sticky-note mr-1"></i>${item.note}</p>` : ''}
-              </div>
-            </div>
-            <button onclick="event.stopPropagation(); deleteExpiryLog('${item.id}')" class="text-slate-300 hover:text-red-500 p-2 transition shrink-0" title="ลบรายการ">
-              <i class="fa-solid fa-trash-can text-sm"></i>
-            </button>
-          </div>
-        `;
-      }).join('');
-
+      container.innerHTML = items.map(item => isHistory ? renderHistoryCard(item) : renderActiveCard(item)).join('');
       updateDashboardStats();
     }
 
+    // ลบถาวร (ใช้กรณีบันทึกผิด หรือลบประวัติ) คืนค่า true ถ้าลบสำเร็จ
     async function deleteExpiryLog(id) {
-      if (confirm('ต้องการลบรายการบันทึกหมดอายุนี้หรือไม่?')) {
-        try {
-          await window.dbOps.deleteExpiryLog(id);
-          showToast('ลบรายการเรียบร้อย', 'success');
-          await window.dbOps.fetchData();
-        } catch (err) {
-          showToast('ลบไม่สำเร็จ: ' + err.message, 'error');
-        }
+      if (!confirm('ลบรายการนี้ถาวรหรือไม่? (กู้คืนไม่ได้)\nถ้าสินค้าขาย/ทิ้งไปแล้ว แนะนำให้ใช้ "จัดการแล้ว" แทน เพื่อเก็บประวัติไว้')) {
+        return false;
+      }
+      try {
+        await window.dbOps.deleteExpiryLog(id);
+        showToast('ลบรายการเรียบร้อย', 'success');
+        closeDetailModal();
+        await window.dbOps.fetchData();
+        return true;
+      } catch (err) {
+        showToast(dbErrorMessage(err, 'ลบไม่สำเร็จ'), 'error');
+        return false;
       }
     }
 
-    function updateDashboardStats() {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+    // ---------- จัดการแล้ว ----------
+    function openHandleModal(id) {
+      const log = findLog(id);
+      if (!log || !isActiveLog(log)) return;
+      const master = findMaster(log.barcode);
+      handlingLogId = id;
+      handleSelectedStatus = null;
 
+      document.getElementById('handle-product-name').textContent = `${master.name || 'ไม่ทราบชื่อสินค้า'} · Exp ${log.expDate}`;
+      document.getElementById('handle-total-qty').textContent = `${log.qty} ${master.unit || 'ชิ้น'}`;
+      const qtyInput = document.getElementById('handle-qty');
+      qtyInput.max = log.qty;
+      qtyInput.value = log.qty;
+
+      renderHandleStatusOptions();
+      document.getElementById('handle-modal').classList.remove('hidden');
+    }
+
+    function renderHandleStatusOptions() {
+      document.getElementById('handle-status-options').innerHTML = Object.entries(HANDLE_STATUSES).map(([key, meta]) => {
+        const selected = key === handleSelectedStatus;
+        return `
+          <button type="button" data-status="${key}" onclick="selectHandleStatus(this.dataset.status)" aria-pressed="${selected}"
+            class="p-3 rounded-xl border-2 text-xs font-semibold flex flex-col items-center gap-1.5 transition ${selected ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-600 hover:border-slate-300'}">
+            <i class="fa-solid ${meta.icon} text-base"></i>${meta.label}
+          </button>`;
+      }).join('');
+    }
+
+    function selectHandleStatus(status) {
+      handleSelectedStatus = status;
+      renderHandleStatusOptions();
+    }
+
+    function closeHandleModal() {
+      document.getElementById('handle-modal').classList.add('hidden');
+      handlingLogId = null;
+      handleSelectedStatus = null;
+    }
+
+    async function confirmHandle() {
+      const log = findLog(handlingLogId);
+      if (!log) {
+        closeHandleModal();
+        return;
+      }
+      if (!handleSelectedStatus) {
+        showToast('กรุณาเลือกว่าสินค้าถูกจัดการอย่างไร', 'error');
+        return;
+      }
+      const total = Number(log.qty);
+      const qty = parseInt(document.getElementById('handle-qty').value);
+      if (!Number.isInteger(qty) || qty < 1 || qty > total) {
+        showToast(`จำนวนต้องอยู่ระหว่าง 1 ถึง ${total}`, 'error');
+        return;
+      }
+
+      const btn = document.getElementById('handle-confirm-btn');
+      btn.disabled = true;
+      const status = handleSelectedStatus;
+      const handledAt = new Date().toISOString();
+      try {
+        if (qty === total) {
+          await window.dbOps.updateExpiryLog(log.id, { status, handledAt });
+        } else {
+          // จัดการบางส่วน: สร้างรายการประวัติสำหรับส่วนที่จัดการ แล้วลดจำนวนในรายการปัจจุบัน
+          // (บันทึกประวัติก่อน ถ้าขั้นที่สองพลาดจะไม่มีข้อมูลหาย)
+          await window.dbOps.saveExpiryLog({
+            id: newLogId(),
+            barcode: log.barcode,
+            qty,
+            expDate: log.expDate,
+            note: log.note || '',
+            createdAt: log.createdAt || handledAt,
+            status,
+            handledAt
+          });
+          await window.dbOps.updateExpiryLog(log.id, { qty: total - qty });
+        }
+        showToast(`บันทึกว่า "${statusMeta(status).label}" เรียบร้อย`, 'success');
+        closeHandleModal();
+        closeDetailModal();
+        await window.dbOps.fetchData();
+      } catch (err) {
+        console.error(err);
+        showToast(dbErrorMessage(err), 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function restoreLog(id) {
+      try {
+        await window.dbOps.updateExpiryLog(id, { status: null, handledAt: null });
+        showToast('ย้ายกลับไปที่รายการปัจจุบันแล้ว', 'success');
+        closeDetailModal();
+        await window.dbOps.fetchData();
+      } catch (err) {
+        console.error(err);
+        showToast(dbErrorMessage(err), 'error');
+      }
+    }
+
+    // ---------- แก้ไขรายการหมดอายุ ----------
+    function openEditLogModal(id) {
+      const log = findLog(id);
+      if (!log) return;
+      const master = findMaster(log.barcode);
+      editingLogId = id;
+      document.getElementById('edit-log-product').textContent = `${master.name || 'ไม่ทราบชื่อสินค้า'} · ${log.barcode}`;
+      document.getElementById('edit-log-qty').value = log.qty;
+      document.getElementById('edit-log-exp').value = log.expDate;
+      document.getElementById('edit-log-note').value = log.note || '';
+      document.getElementById('edit-log-modal').classList.remove('hidden');
+    }
+
+    function closeEditLogModal() {
+      document.getElementById('edit-log-modal').classList.add('hidden');
+      editingLogId = null;
+    }
+
+    async function handleUpdateExpiryLog(e) {
+      e.preventDefault();
+      if (!editingLogId) return;
+      const qty = parseInt(document.getElementById('edit-log-qty').value);
+      const expDate = document.getElementById('edit-log-exp').value;
+      const note = document.getElementById('edit-log-note').value.trim();
+
+      if (!Number.isInteger(qty) || qty < 1) {
+        showToast('กรุณาใส่จำนวนเป็นตัวเลขตั้งแต่ 1 ขึ้นไป', 'error');
+        return;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expDate)) {
+        showToast('กรุณาเลือกวันหมดอายุให้ถูกต้อง', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('edit-log-save-btn');
+      btn.disabled = true;
+      try {
+        await window.dbOps.updateExpiryLog(editingLogId, { qty, expDate, note });
+        showToast('แก้ไขรายการเรียบร้อยแล้ว', 'success');
+        closeEditLogModal();
+        closeDetailModal();
+        await window.dbOps.fetchData();
+      } catch (err) {
+        console.error(err);
+        showToast(dbErrorMessage(err), 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function deleteFromEditLogModal() {
+      if (!editingLogId) return;
+      const deleted = await deleteExpiryLog(editingLogId);
+      if (deleted) closeEditLogModal();
+    }
+
+    function updateDashboardStats() {
       let warningCount = 0;
       let expiredCount = 0;
 
       if (window.expiryLogs) {
-        window.expiryLogs.forEach(log => {
-          const exp = new Date(log.expDate);
-          exp.setHours(0, 0, 0, 0);
-          const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+        window.expiryLogs.filter(isActiveLog).forEach(log => {
+          const diffDays = daysUntil(log.expDate);
 
           if (diffDays < 0) {
             expiredCount++;
@@ -1023,13 +1746,9 @@
       if (!log) return;
 
       const master = window.masterProducts.find(p => p.barcode === log.barcode) || {};
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const exp = new Date(log.expDate);
-      exp.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+      const diffDays = daysUntil(log.expDate);
 
-      document.getElementById('detail-img').src = master.imageUrl || 'https://placehold.co/400x400/e2e8f0/64748b?text=No+Img';
+      document.getElementById('detail-img').src = safeImageUrl(master.imageUrl, PLACEHOLDER_IMG_LG);
       document.getElementById('detail-name').textContent = master.name || 'ไม่ทราบชื่อสินค้า';
       document.getElementById('detail-barcode-badge').textContent = `BARCODE: ${log.barcode}`;
       document.getElementById('detail-qty').textContent = log.qty;
@@ -1037,15 +1756,40 @@
       document.getElementById('detail-exp').textContent = log.expDate;
 
       const badge = document.getElementById('detail-status-badge');
-      if (diffDays < 0) {
-        badge.textContent = `หมดอายุแล้ว (${Math.abs(diffDays)} วัน)`;
-        badge.className = 'absolute bottom-3 left-3 text-xs font-semibold px-3 py-1 rounded-full shadow-lg text-white bg-red-600';
-      } else if (diffDays <= 14) {
-        badge.textContent = `ใกล้หมดอายุ (เหลือ ${diffDays} วัน)`;
-        badge.className = 'absolute bottom-3 left-3 text-xs font-semibold px-3 py-1 rounded-full shadow-lg text-white bg-amber-500';
+      const badgeBase = 'absolute bottom-3 left-3 text-xs font-semibold px-3 py-1 rounded-full shadow-lg text-white ';
+      const actions = document.getElementById('detail-actions');
+      const safeId = escapeHtml(log.id);
+      const closeBtn = `<button onclick="closeDetailModal()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium p-3 rounded-xl text-xs shadow-md active:scale-98 transition">ปิดหน้าต่าง</button>`;
+
+      if (isActiveLog(log)) {
+        const state = expiryState(diffDays);
+        badge.textContent = state.text;
+        badge.className = badgeBase + state.solid;
+        actions.innerHTML = `
+          <div class="grid grid-cols-2 gap-2">
+            <button data-id="${safeId}" onclick="openEditLogModal(this.dataset.id)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold p-3 rounded-xl text-xs transition">
+              <i class="fa-solid fa-pen-to-square mr-1"></i> แก้ไข
+            </button>
+            <button data-id="${safeId}" onclick="openHandleModal(this.dataset.id)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3 rounded-xl text-xs shadow-md transition">
+              <i class="fa-solid fa-circle-check mr-1"></i> จัดการแล้ว
+            </button>
+          </div>
+          ${closeBtn}`;
       } else {
-        badge.textContent = `ปกติ (เหลือ ${diffDays} วัน)`;
-        badge.className = 'absolute bottom-3 left-3 text-xs font-semibold px-3 py-1 rounded-full shadow-lg text-white bg-emerald-600';
+        const meta = statusMeta(log.status);
+        badge.textContent = meta.label;
+        badge.className = badgeBase + meta.solid;
+        actions.innerHTML = `
+          <p class="text-[11px] text-slate-500 text-center"><i class="fa-regular fa-calendar-check mr-1"></i>จัดการเมื่อ ${escapeHtml(formatThaiDate(log.handledAt))}</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button data-id="${safeId}" onclick="restoreLog(this.dataset.id)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold p-3 rounded-xl text-xs transition">
+              <i class="fa-solid fa-rotate-left mr-1"></i> ย้อนกลับ
+            </button>
+            <button data-id="${safeId}" onclick="deleteExpiryLog(this.dataset.id)" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-3 rounded-xl text-xs transition">
+              <i class="fa-solid fa-trash-can mr-1"></i> ลบถาวร
+            </button>
+          </div>
+          ${closeBtn}`;
       }
 
       const noteBox = document.getElementById('detail-note-container');
@@ -1071,6 +1815,502 @@
       document.getElementById('info-modal').classList.add('hidden');
     }
 
+    // ---------- ล็อกอินด้วย Telegram ----------
+    const AUTH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/telegram-auth`;
+    const TELEGRAM_BOT_USERNAME = ''; // ใส่ชื่อบอท (ไม่ต้องมี @) เพื่อแสดงลิงก์เปิดบอทในหน้าล็อกอิน
+    const LAST_TG_ID_KEY = 'last_telegram_id';
+    window.currentUser = null;
+    let loginTelegramId = '';
+    let resendTimer = null;
+    let verifyingLogin = false;
+    let authListenerAttached = false;
+
+    async function callAuthFunction(payload) {
+      let res;
+      try {
+        res = await fetch(AUTH_FUNCTION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        const e = new Error(data.error || `เกิดข้อผิดพลาด (${res.status})`);
+        e.retryAfter = data.retryAfter;
+        throw e;
+      }
+      return data;
+    }
+
+    function setLoginMessage(kind, msg) {
+      const errEl = document.getElementById('login-error');
+      const infoEl = document.getElementById('login-info');
+      errEl.classList.add('hidden');
+      infoEl.classList.add('hidden');
+      if (!msg) return;
+      const el = kind === 'error' ? errEl : infoEl;
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function showLoginScreen() {
+      const screen = document.getElementById('login-screen');
+      screen.classList.remove('hidden');
+      screen.classList.add('flex');
+      if (TELEGRAM_BOT_USERNAME) {
+        const safe = encodeURIComponent(TELEGRAM_BOT_USERNAME.replace(/^@/, ''));
+        document.getElementById('login-bot-link').innerHTML =
+          `<a href="https://t.me/${safe}" target="_blank" rel="noopener" class="text-sky-600 font-semibold underline">เปิดบอท @${escapeHtml(TELEGRAM_BOT_USERNAME.replace(/^@/, ''))}</a>`;
+      }
+      backToLoginId();
+      try {
+        const last = localStorage.getItem(LAST_TG_ID_KEY);
+        if (last) document.getElementById('login-telegram-id').value = last;
+      } catch (e) { /* ignore */ }
+    }
+
+    function hideLoginScreen() {
+      const screen = document.getElementById('login-screen');
+      screen.classList.add('hidden');
+      screen.classList.remove('flex');
+      setLoginMessage(null, '');
+    }
+
+    function showLoginCodeStep(id) {
+      loginTelegramId = id;
+      document.getElementById('login-sent-id').textContent = id;
+      document.getElementById('login-step-id').classList.add('hidden');
+      document.getElementById('login-step-code').classList.remove('hidden');
+      const codeInput = document.getElementById('login-code');
+      codeInput.value = '';
+      codeInput.focus();
+    }
+
+    function backToLoginId() {
+      document.getElementById('login-step-code').classList.add('hidden');
+      document.getElementById('login-step-id').classList.remove('hidden');
+      document.getElementById('login-code').value = '';
+      setLoginMessage(null, '');
+    }
+
+    function startResendCooldown(seconds) {
+      const btn = document.getElementById('login-resend-btn');
+      clearInterval(resendTimer);
+      let left = Math.max(1, Math.ceil(seconds));
+      btn.disabled = true;
+      btn.textContent = `ส่งรหัสใหม่ (${left})`;
+      resendTimer = setInterval(() => {
+        left--;
+        if (left <= 0) {
+          clearInterval(resendTimer);
+          btn.disabled = false;
+          btn.textContent = 'ส่งรหัสใหม่';
+        } else {
+          btn.textContent = `ส่งรหัสใหม่ (${left})`;
+        }
+      }, 1000);
+    }
+
+    async function requestLoginCode(e) {
+      if (e) e.preventDefault();
+      const id = document.getElementById('login-telegram-id').value.replace(/\s+/g, '');
+      if (!/^\d{4,15}$/.test(id)) {
+        setLoginMessage('error', 'Telegram ID ต้องเป็นตัวเลขเท่านั้น');
+        return;
+      }
+      const btn = document.getElementById('login-request-btn');
+      btn.disabled = true;
+      setLoginMessage(null, '');
+      try {
+        const data = await callAuthFunction({ action: 'request', telegramId: id });
+        try { localStorage.setItem(LAST_TG_ID_KEY, id); } catch (err) { /* ignore */ }
+        showLoginCodeStep(id);
+        setLoginMessage('info', data.message || 'ส่งรหัสแล้ว กรุณาดูใน Telegram');
+        startResendCooldown(data.cooldown || 60);
+      } catch (err) {
+        if (err.retryAfter) {
+          // เพิ่งขอรหัสไป: รหัสเดิมยังใช้ได้
+          showLoginCodeStep(id);
+          setLoginMessage('info', 'รหัสที่ส่งไปก่อนหน้านี้ยังใช้ได้ ดูใน Telegram ได้เลย');
+          startResendCooldown(err.retryAfter);
+        } else {
+          setLoginMessage('error', err.message);
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function resendLoginCode() {
+      if (!loginTelegramId) return backToLoginId();
+      document.getElementById('login-telegram-id').value = loginTelegramId;
+      requestLoginCode();
+    }
+
+    function onLoginCodeInput(el) {
+      el.value = el.value.replace(/\D/g, '').slice(0, 6);
+      if (el.value.length === 6) verifyLoginCode();
+    }
+
+    async function verifyLoginCode(e) {
+      if (e) e.preventDefault();
+      if (verifyingLogin) return;
+      const codeInput = document.getElementById('login-code');
+      const code = codeInput.value.trim();
+      if (!/^\d{6}$/.test(code)) {
+        setLoginMessage('error', 'กรุณาใส่รหัส 6 หลัก');
+        return;
+      }
+      const btn = document.getElementById('login-verify-btn');
+      verifyingLogin = true;
+      btn.disabled = true;
+      btn.textContent = 'กำลังตรวจสอบ...';
+      setLoginMessage(null, '');
+      try {
+        const data = await callAuthFunction({ action: 'verify', telegramId: loginTelegramId, code });
+        const { data: authData, error } = await supabaseClient.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
+        if (error) throw error;
+        onSignedIn(authData.session);
+        hideLoginScreen();
+        clearInterval(resendTimer);
+        showToast(`ยินดีต้อนรับ ${window.currentUser.name || ''}`.trim(), 'success');
+        await window.dbOps.fetchData();
+      } catch (err) {
+        setLoginMessage('error', err.message || String(err));
+        codeInput.value = '';
+        codeInput.focus();
+      } finally {
+        verifyingLogin = false;
+        btn.disabled = false;
+        btn.textContent = 'เข้าสู่ระบบ';
+      }
+    }
+
+    function onSignedIn(session) {
+      const user = session && session.user;
+      if (!user) return;
+      window.currentUser = {
+        telegramId: String((user.app_metadata || {}).telegram_id || ''),
+        name: (user.user_metadata || {}).name || ''
+      };
+      document.getElementById('account-name').textContent = window.currentUser.name || 'ผู้ใช้';
+      document.getElementById('account-id').textContent = `Telegram ID: ${window.currentUser.telegramId}`;
+      const box = document.getElementById('account-box');
+      box.classList.remove('hidden');
+      box.classList.add('flex');
+    }
+
+    function handleSignedOut() {
+      window.currentUser = null;
+      window.masterProducts = [];
+      window.expiryLogs = [];
+      try { localStorage.removeItem(OFFLINE_SNAPSHOT_KEY); } catch (e) { /* ignore */ }
+      const box = document.getElementById('account-box');
+      box.classList.add('hidden');
+      box.classList.remove('flex');
+      renderFeedList();
+      renderMasterList();
+      showLoginScreen();
+    }
+
+    async function logout() {
+      if (!confirm('ออกจากระบบหรือไม่?')) return;
+      closeInfoModal();
+      try {
+        await supabaseClient.auth.signOut();
+      } catch (err) {
+        console.warn('signOut error:', err);
+      }
+      handleSignedOut();
+      showToast('ออกจากระบบแล้ว', 'info');
+    }
+
+    async function initAuthAndLoad() {
+      if (!supabaseClient) {
+        await window.dbOps.fetchData(); // โหมด LocalStorage ไม่ต้องล็อกอิน
+        return;
+      }
+
+      if (!authListenerAttached) {
+        authListenerAttached = true;
+        supabaseClient.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT' && window.currentUser) handleSignedOut();
+        });
+      }
+
+      let session = null;
+      try {
+        const { data } = await supabaseClient.auth.getSession();
+        session = data && data.session;
+      } catch (err) {
+        console.warn('getSession error:', err);
+      }
+
+      if (session) {
+        onSignedIn(session);
+        await window.dbOps.fetchData();
+        return;
+      }
+
+      // ออฟไลน์และเครื่องนี้เคยล็อกอินไว้: ให้ดูข้อมูลล่าสุดได้ (ข้อมูลนี้ถูกลบเมื่อออกจากระบบ)
+      const snapshot = !navigator.onLine ? loadOfflineSnapshot() : null;
+      if (snapshot) {
+        window.masterProducts = snapshot.masters;
+        window.expiryLogs = snapshot.logs;
+        setDbBadge('offline');
+        renderMasterList();
+        renderFeedList();
+        showToast(`ออฟไลน์ — แสดงข้อมูลล่าสุดเมื่อ ${formatDateTime(snapshot.savedAt)}`, 'info');
+        return;
+      }
+
+      showLoginScreen();
+    }
+
+    // ---------- PWA: ติดตั้งแอป & ออฟไลน์ ----------
+    const INSTALL_DISMISS_KEY = 'install_banner_dismissed';
+    let deferredInstallPrompt = null;
+
+    function isStandalone() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    function isIos() {
+      return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
+    function installBannerDismissed() {
+      try { return localStorage.getItem(INSTALL_DISMISS_KEY) === '1'; } catch (e) { return false; }
+    }
+
+    function showInstallBanner(iosMode) {
+      if (isStandalone() || installBannerDismissed()) return;
+      const banner = document.getElementById('install-banner');
+      const btn = document.getElementById('install-banner-btn');
+      if (iosMode) {
+        document.getElementById('install-banner-text').innerHTML =
+          'กดปุ่มแชร์ <i class="fa-solid fa-arrow-up-from-bracket"></i> แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"';
+        btn.classList.add('hidden');
+      } else {
+        btn.classList.remove('hidden');
+      }
+      banner.classList.remove('hidden');
+      banner.classList.add('flex');
+    }
+
+    function hideInstallBanner() {
+      const banner = document.getElementById('install-banner');
+      banner.classList.add('hidden');
+      banner.classList.remove('flex');
+    }
+
+    function dismissInstallBanner() {
+      hideInstallBanner();
+      try { localStorage.setItem(INSTALL_DISMISS_KEY, '1'); } catch (e) { /* ignore */ }
+    }
+
+    async function installApp() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      hideInstallBanner();
+      if (outcome === 'accepted') showToast('กำลังติดตั้งแอป...', 'success');
+    }
+
+    // Chrome/Edge/Android: เบราว์เซอร์แจ้งว่าติดตั้งได้
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      showInstallBanner(false);
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      hideInstallBanner();
+    });
+
+    // กลับมาออนไลน์: โหลดข้อมูลล่าสุดอัตโนมัติ
+    window.addEventListener('online', () => {
+      if (supabaseClient && !window.currentUser) {
+        initAuthAndLoad();
+        return;
+      }
+      showToast('กลับมาออนไลน์แล้ว กำลังโหลดข้อมูลล่าสุด...', 'info');
+      window.dbOps.fetchData();
+    });
+
+    // Service Worker ทำงานได้เฉพาะบน https หรือ localhost
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service worker register failed:', err));
+      });
+    }
+
+    // iPhone/iPad ไม่มีปุ่มติดตั้งอัตโนมัติ ให้แสดงวิธีเพิ่มไปหน้าจอโฮมแทน
+    document.addEventListener('DOMContentLoaded', () => {
+      if (isIos() && !isStandalone()) showInstallBanner(true);
+    });
+
+    // ---------- Export Excel / CSV ----------
+    const XLSX_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    let xlsxLoading = null;
+
+    // โหลดไลบรารี Excel เฉพาะตอนกดส่งออก (ไม่ทำให้แอปเปิดช้า)
+    function loadXlsx() {
+      if (window.XLSX) return Promise.resolve(window.XLSX);
+      if (!xlsxLoading) {
+        xlsxLoading = new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = XLSX_SRC;
+          s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('โหลดไลบรารี Excel ไม่สำเร็จ'));
+          s.onerror = () => {
+            xlsxLoading = null;
+            s.remove();
+            reject(new Error('โหลดไลบรารี Excel ไม่สำเร็จ (ตรวจการเชื่อมต่ออินเทอร์เน็ต)'));
+          };
+          document.head.appendChild(s);
+        });
+      }
+      return xlsxLoading;
+    }
+
+    function openExportModal() {
+      const logs = window.expiryLogs || [];
+      const activeCount = logs.filter(isActiveLog).length;
+      document.getElementById('export-count-active').textContent = `${activeCount} รายการ`;
+      document.getElementById('export-count-history').textContent = `${logs.length - activeCount} รายการ`;
+      document.getElementById('export-count-master').textContent = `${(window.masterProducts || []).length} รายการ`;
+      document.getElementById('export-modal').classList.remove('hidden');
+    }
+
+    function closeExportModal() {
+      document.getElementById('export-modal').classList.add('hidden');
+    }
+
+    // สร้างข้อมูลแต่ละชีต: { name, key, header, rows, widths, textCols }
+    function buildExportSheets() {
+      const sheets = [];
+      const logs = window.expiryLogs || [];
+
+      if (document.getElementById('export-active').checked) {
+        const rows = logs.filter(isActiveLog)
+          .slice()
+          .sort((a, b) => String(a.expDate).localeCompare(String(b.expDate)))
+          .map(log => {
+            const m = findMaster(log.barcode);
+            const days = daysUntil(log.expDate);
+            const state = days < 0 ? 'หมดอายุแล้ว' : (days <= 14 ? 'ใกล้หมดอายุ' : 'ปกติ');
+            return [log.barcode, m.name || 'ไม่ทราบชื่อสินค้า', Number(log.qty), m.unit || '', log.expDate, days, state, log.note || '', formatDateTime(log.createdAt)];
+          });
+        sheets.push({
+          name: 'รายการปัจจุบัน', key: 'current',
+          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'จำนวน', 'หน่วย', 'วันหมดอายุ', 'เหลือ (วัน)', 'สถานะ', 'หมายเหตุ', 'วันที่บันทึก'],
+          rows, widths: [16, 28, 8, 8, 12, 10, 12, 28, 17], textCols: [0]
+        });
+      }
+
+      if (document.getElementById('export-history').checked) {
+        const rows = logs.filter(l => !isActiveLog(l))
+          .slice()
+          .sort((a, b) => String(b.handledAt || '').localeCompare(String(a.handledAt || '')))
+          .map(log => {
+            const m = findMaster(log.barcode);
+            return [log.barcode, m.name || 'ไม่ทราบชื่อสินค้า', Number(log.qty), m.unit || '', log.expDate, statusMeta(log.status).label, formatDateTime(log.handledAt), log.note || ''];
+          });
+        sheets.push({
+          name: 'ประวัติการจัดการ', key: 'history',
+          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'จำนวน', 'หน่วย', 'วันหมดอายุ', 'การจัดการ', 'วันที่จัดการ', 'หมายเหตุ'],
+          rows, widths: [16, 28, 8, 8, 12, 16, 17, 28], textCols: [0]
+        });
+      }
+
+      if (document.getElementById('export-master').checked) {
+        const rows = (window.masterProducts || []).map(p => [p.barcode, p.name || '', p.unit || '', /^https:/i.test(p.imageUrl || '') ? p.imageUrl : '']);
+        sheets.push({
+          name: 'สินค้าหลัก', key: 'products',
+          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'หน่วย', 'ลิงก์รูปภาพ'],
+          rows, widths: [16, 30, 10, 50], textCols: [0]
+        });
+      }
+      return sheets;
+    }
+
+    // ป้องกัน CSV/Formula injection และให้บาร์โค้ดเป็นข้อความ (ไม่กลายเป็นเลขยกกำลังใน Excel)
+    function csvCell(value, asText) {
+      if (value == null) value = '';
+      let s = String(value);
+      if (typeof value === 'string') {
+        if (asText && /^\d+$/.test(s)) {
+          s = `="${s}"`;
+        } else if (/^[=+\-@\t\r]/.test(s)) {
+          s = "'" + s;
+        }
+      }
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    async function exportData(format) {
+      const sheets = buildExportSheets();
+      if (sheets.length === 0) {
+        showToast('กรุณาเลือกข้อมูลอย่างน้อย 1 หัวข้อ', 'error');
+        return;
+      }
+      const baseName = `stock-expiry-${todayLocalISO()}`;
+      const buttons = [document.getElementById('export-xlsx-btn'), document.getElementById('export-csv-btn')];
+      buttons.forEach(b => { b.disabled = true; });
+
+      try {
+        if (format === 'xlsx') {
+          showToast('กำลังสร้างไฟล์ Excel...', 'info');
+          const XLSX = await loadXlsx();
+          const wb = XLSX.utils.book_new();
+          sheets.forEach(sheet => {
+            // บาร์โค้ดเก็บเป็นข้อความเสมอ
+            const aoa = [sheet.header, ...sheet.rows.map(r => r.map((v, i) => sheet.textCols.includes(i) ? String(v == null ? '' : v) : v))];
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = sheet.widths.map(w => ({ wch: w }));
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: sheet.header.length - 1 } }) };
+            XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+          });
+          XLSX.writeFile(wb, `${baseName}.xlsx`, { compression: true });
+        } else {
+          for (let i = 0; i < sheets.length; i++) {
+            const sheet = sheets[i];
+            const lines = [sheet.header, ...sheet.rows].map((row, rowIdx) =>
+              row.map((v, c) => rowIdx > 0 ? csvCell(v, sheet.textCols.includes(c)) : csvCell(v, false)).join(',')
+            );
+            // ﻿ (BOM) ทำให้ Excel อ่านภาษาไทยถูกต้อง
+            const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+            downloadBlob(blob, `${baseName}-${sheet.key}.csv`);
+            if (i < sheets.length - 1) await new Promise(r => setTimeout(r, 400));
+          }
+        }
+        showToast('ส่งออกข้อมูลเรียบร้อยแล้ว', 'success');
+        closeExportModal();
+      } catch (err) {
+        console.error('Export error:', err);
+        showToast((err.message || 'ส่งออกไม่สำเร็จ') + (format === 'xlsx' ? ' ลองใช้ CSV แทน' : ''), 'error');
+      } finally {
+        buttons.forEach(b => { b.disabled = false; });
+      }
+    }
+
     function showToast(message, type = 'success') {
       const toast = document.getElementById('toast');
       const body = document.getElementById('toast-body');
@@ -1091,7 +2331,8 @@
       }
 
       toast.classList.remove('opacity-0', 'pointer-events-none');
-      setTimeout(() => {
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
         toast.classList.add('opacity-0', 'pointer-events-none');
       }, 3000);
     }
