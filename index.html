@@ -292,17 +292,38 @@
             </select>
           </div>
 
+          <!-- Pack Rate -->
+          <div>
+            <label for="master-pack" class="block text-xs font-semibold text-slate-600 mb-1">อัตรา <span class="text-slate-400 font-normal">(1 หน่วยนี้มีกี่ชิ้น เช่น ลังละ 20 ใส่ 20)</span></label>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold text-slate-500 shrink-0">1 x</span>
+              <input type="number" id="master-pack" required min="1" max="100000" step="1" value="1" inputmode="numeric" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+          </div>
+
           <!-- Image Upload -->
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">รูปภาพสินค้า</label>
             
             <div class="space-y-2">
-              <input type="file" id="master-image-file" accept="image/*" onchange="previewImage(this)" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+              <div class="grid grid-cols-2 gap-2">
+                <label for="master-image-camera" class="flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold text-xs py-3 rounded-xl cursor-pointer active:scale-98 transition">
+                  <i class="fa-solid fa-camera"></i> ถ่ายรูป
+                </label>
+                <label for="master-image-file" class="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold text-xs py-3 rounded-xl cursor-pointer active:scale-98 transition">
+                  <i class="fa-solid fa-images"></i> เลือกจากคลัง
+                </label>
+              </div>
+              <input type="file" id="master-image-camera" accept="image/*" capture="environment" class="hidden" onchange="pickImage(this, 'master')">
+              <input type="file" id="master-image-file" accept="image/*" class="hidden" onchange="pickImage(this, 'master')">
 
               <!-- Image Preview Box -->
               <div id="image-preview-container" class="mt-2 hidden">
                 <p id="image-preview-label" class="text-[10px] text-slate-400 mb-1">ตัวอย่างรูปภาพ:</p>
-                <img id="image-preview" src="#" alt="Preview" class="w-24 h-24 object-cover rounded-xl border border-slate-300 shadow-sm">
+                <div class="flex items-end gap-3">
+                  <img id="image-preview" src="#" alt="Preview" class="w-24 h-24 object-cover rounded-xl border border-slate-300 shadow-sm">
+                  <button type="button" onclick="clearPickedImage('master')" class="text-xs text-red-500 hover:underline font-medium"><i class="fa-solid fa-xmark mr-1"></i>เอารูปออก</button>
+                </div>
               </div>
             </div>
           </div>
@@ -382,12 +403,32 @@
           </div>
 
           <div>
+            <label for="edit-master-pack" class="block text-xs font-semibold text-slate-600 mb-1">อัตรา <span class="text-slate-400 font-normal">(1 หน่วยนี้มีกี่ชิ้น)</span></label>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold text-slate-500 shrink-0">1 x</span>
+              <input type="number" id="edit-master-pack" required min="1" max="100000" step="1" value="1" inputmode="numeric" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+          </div>
+
+          <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">รูปภาพสินค้า</label>
-            <input type="file" id="edit-master-image-file" accept="image/*" onchange="previewEditImage(this)" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
-            
+            <div class="grid grid-cols-2 gap-2">
+              <label for="edit-master-image-camera" class="flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold text-xs py-3 rounded-xl cursor-pointer active:scale-98 transition">
+                <i class="fa-solid fa-camera"></i> ถ่ายรูป
+              </label>
+              <label for="edit-master-image-file" class="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold text-xs py-3 rounded-xl cursor-pointer active:scale-98 transition">
+                <i class="fa-solid fa-images"></i> เลือกจากคลัง
+              </label>
+            </div>
+            <input type="file" id="edit-master-image-camera" accept="image/*" capture="environment" class="hidden" onchange="pickImage(this, 'edit')">
+            <input type="file" id="edit-master-image-file" accept="image/*" class="hidden" onchange="pickImage(this, 'edit')">
+
             <div id="edit-image-preview-container" class="mt-2.5">
-              <p class="text-[10px] text-slate-400 mb-1">ตัวอย่างรูปภาพปัจจุบัน:</p>
-              <img id="edit-image-preview" src="#" alt="Preview" class="w-20 h-20 object-cover rounded-xl border border-slate-300 shadow-sm">
+              <p id="edit-image-preview-label" class="text-[10px] text-slate-400 mb-1">ตัวอย่างรูปภาพปัจจุบัน:</p>
+              <div class="flex items-end gap-3">
+                <img id="edit-image-preview" src="#" alt="Preview" class="w-20 h-20 object-cover rounded-xl border border-slate-300 shadow-sm">
+                <button type="button" id="edit-image-clear-btn" onclick="clearPickedImage('edit')" class="hidden text-xs text-red-500 hover:underline font-medium"><i class="fa-solid fa-rotate-left mr-1"></i>ใช้รูปเดิม</button>
+              </div>
             </div>
           </div>
 
@@ -512,6 +553,7 @@
               <div class="min-w-0">
                 <p class="text-[10px] text-slate-400 font-medium">จำนวนสินค้า</p>
                 <p class="text-sm font-bold text-slate-700 truncate"><span id="detail-qty" class="text-emerald-600">0</span> <span id="detail-unit" class="text-xs text-slate-500 font-normal">ชิ้น</span></p>
+                <p id="detail-pieces" class="text-[10px] text-slate-400 truncate hidden"></p>
               </div>
             </div>
 
@@ -1043,7 +1085,7 @@
       
       if (product) {
         document.getElementById('preview-p-name').textContent = product.name;
-        document.getElementById('preview-p-unit').textContent = product.unit;
+        document.getElementById('preview-p-unit').textContent = unitWithPack(product);
         document.getElementById('preview-p-img').src = safeImageUrl(product.imageUrl);
         previewBox.classList.remove('hidden');
       } else {
@@ -1051,29 +1093,43 @@
       }
     }
 
-    function previewImage(input) {
-      const container = document.getElementById('image-preview-container');
-      const preview = document.getElementById('image-preview');
-      if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          preview.src = e.target.result;
-          container.classList.remove('hidden');
-        }
-        reader.readAsDataURL(input.files[0]);
-      } else {
-        container.classList.add('hidden');
+    // รูปที่เลือกไว้ (จากกล้องหรือคลังภาพ) รอบันทึก: master = ฟอร์มเพิ่มสินค้า, edit = หน้าต่างแก้ไข
+    const pickedImages = { master: null, edit: null };
+
+    function pickImage(input, target) {
+      const file = input.files && input.files[0];
+      input.value = ''; // ให้เลือกรูปเดิมซ้ำได้
+      if (!file) return;
+      if (file.type && !/^image\//i.test(file.type)) {
+        showToast('กรุณาเลือกไฟล์รูปภาพ', 'error');
+        return;
       }
+      pickedImages[target] = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (pickedImages[target] !== file) return;
+        if (target === 'master') {
+          document.getElementById('image-preview').src = e.target.result;
+          document.getElementById('image-preview-container').classList.remove('hidden');
+        } else {
+          document.getElementById('edit-image-preview').src = e.target.result;
+          document.getElementById('edit-image-preview-label').textContent = 'รูปใหม่ (บันทึกแล้วจะแทนรูปเดิม):';
+          document.getElementById('edit-image-clear-btn').classList.remove('hidden');
+        }
+      };
+      reader.readAsDataURL(file);
     }
 
-    function previewEditImage(input) {
-      const preview = document.getElementById('edit-image-preview');
-      if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          preview.src = e.target.result;
-        }
-        reader.readAsDataURL(input.files[0]);
+    function clearPickedImage(target) {
+      pickedImages[target] = null;
+      if (target === 'master') {
+        document.getElementById('image-preview-container').classList.add('hidden');
+        document.getElementById('image-preview').src = '#';
+      } else {
+        const product = window.masterProducts.find(p => p.barcode === editingMasterBarcode);
+        document.getElementById('edit-image-preview').src = safeImageUrl(product && product.imageUrl);
+        document.getElementById('edit-image-preview-label').textContent = 'ตัวอย่างรูปภาพปัจจุบัน:';
+        document.getElementById('edit-image-clear-btn').classList.add('hidden');
       }
     }
 
@@ -1137,7 +1193,12 @@
       const barcode = document.getElementById('master-barcode').value.trim();
       const name = document.getElementById('master-name').value.trim();
       const unit = document.getElementById('master-unit').value;
-      const fileInput = document.getElementById('master-image-file');
+      const packSize = readPackInput('master-pack');
+      const imageFile = pickedImages.master;
+      if (!packSize) {
+        showToast('อัตราต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป', 'error');
+        return;
+      }
 
       const saveBtn = document.getElementById('master-save-btn');
       saveBtn.disabled = true;
@@ -1151,18 +1212,18 @@
         }
 
         let imageUrl = existing ? (existing.imageUrl || null) : null;
-        if (fileInput.files && fileInput.files[0]) {
-          imageUrl = await uploadOrThrow(fileInput.files[0], barcode);
+        if (imageFile) {
+          imageUrl = await uploadOrThrow(imageFile, barcode);
         }
 
-        await window.dbOps.saveMasterProduct({ barcode, name, unit, imageUrl });
+        await window.dbOps.saveMasterProduct({ barcode, name, unit, packSize, imageUrl });
 
         showToast('บันทึกข้อมูลสินค้าหลักเรียบร้อยแล้ว!', 'success');
         resetMasterForm();
         await window.dbOps.fetchData();
       } catch (err) {
         console.error(err);
-        showToast('เกิดข้อผิดพลาด: ' + (err.message || err), 'error');
+        showToast(dbErrorMessage(err, 'เกิดข้อผิดพลาด'), 'error');
       } finally {
         saveBtn.disabled = false;
         document.getElementById('master-save-text').textContent = 'บันทึกข้อมูลเข้าคลังสินค้า';
@@ -1225,6 +1286,7 @@
       document.getElementById('edit-master-barcode').value = product.barcode;
       document.getElementById('edit-master-name').value = product.name;
       document.getElementById('edit-master-unit').value = product.unit;
+      document.getElementById('edit-master-pack').value = packSizeOf(product);
 
       const preview = document.getElementById('edit-image-preview');
       preview.src = safeImageUrl(product.imageUrl);
@@ -1236,6 +1298,9 @@
       document.getElementById('edit-master-modal').classList.add('hidden');
       document.getElementById('edit-master-form').reset();
       editingMasterBarcode = null;
+      pickedImages.edit = null;
+      document.getElementById('edit-image-preview-label').textContent = 'ตัวอย่างรูปภาพปัจจุบัน:';
+      document.getElementById('edit-image-clear-btn').classList.add('hidden');
     }
 
     async function handleUpdateMasterProduct(e) {
@@ -1243,7 +1308,12 @@
       const barcode = document.getElementById('edit-master-barcode').value;
       const name = document.getElementById('edit-master-name').value.trim();
       const unit = document.getElementById('edit-master-unit').value;
-      const fileInput = document.getElementById('edit-master-image-file');
+      const packSize = readPackInput('edit-master-pack');
+      const imageFile = pickedImages.edit;
+      if (!packSize) {
+        showToast('อัตราต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป', 'error');
+        return;
+      }
 
       const saveBtn = document.getElementById('edit-master-save-btn');
       saveBtn.disabled = true;
@@ -1252,18 +1322,18 @@
       try {
         const existing = window.masterProducts.find(p => p.barcode === barcode);
         let imageUrl = existing ? (existing.imageUrl || null) : null;
-        if (fileInput.files && fileInput.files[0]) {
-          imageUrl = await uploadOrThrow(fileInput.files[0], barcode);
+        if (imageFile) {
+          imageUrl = await uploadOrThrow(imageFile, barcode);
         }
 
-        await window.dbOps.saveMasterProduct({ barcode, name, unit, imageUrl });
+        await window.dbOps.saveMasterProduct({ barcode, name, unit, packSize, imageUrl });
 
         showToast('อัปเดตข้อมูลสินค้าเรียบร้อยแล้ว!', 'success');
         closeEditMasterModal();
         await window.dbOps.fetchData();
       } catch (err) {
         console.error(err);
-        showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
+        showToast(dbErrorMessage(err, 'เกิดข้อผิดพลาดในการบันทึก'), 'error');
       } finally {
         saveBtn.disabled = false;
         document.getElementById('edit-master-save-text').textContent = 'บันทึกการแก้ไข';
@@ -1273,7 +1343,7 @@
     function resetMasterForm() {
       editingMasterBarcode = null;
       document.getElementById('master-form').reset();
-      document.getElementById('image-preview-container').classList.add('hidden');
+      clearPickedImage('master');
     }
 
     function renderMasterList() {
@@ -1302,7 +1372,7 @@
             <img src="${escapeHtml(safeImageUrl(p.imageUrl))}" class="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0">
             <div class="min-w-0">
               <h4 class="font-bold text-slate-800 text-xs truncate">${escapeHtml(p.name)}</h4>
-              <p class="text-[10px] text-slate-500 font-mono">บาร์โค้ด: ${escapeHtml(p.barcode)} | หน่วย: ${escapeHtml(p.unit)}</p>
+              <p class="text-[10px] text-slate-500 font-mono">บาร์โค้ด: ${escapeHtml(p.barcode)} | หน่วย: ${escapeHtml(p.unit)} <span class="text-indigo-600 font-semibold">${escapeHtml(packLabel(p))}</span></p>
             </div>
           </div>
           <div class="flex items-center space-x-1 shrink-0">
@@ -1360,6 +1430,26 @@
       return String(value == null ? '' : value).toLowerCase().trim();
     }
 
+    // อัตราบรรจุ: 1 หน่วยมีกี่ชิ้น (สินค้าเก่าที่ยังไม่มีค่า = 1)
+    function packSizeOf(product) {
+      const n = Number(product && product.packSize);
+      return Number.isInteger(n) && n >= 1 ? n : 1;
+    }
+    function packLabel(product) {
+      return `1x${packSizeOf(product)}`;
+    }
+    function unitWithPack(product) {
+      const unit = (product && product.unit) || 'ชิ้น';
+      const n = packSizeOf(product);
+      return n > 1 ? `${unit} (1x${n})` : unit;
+    }
+    function readPackInput(id) {
+      const raw = String(document.getElementById(id).value || '').trim();
+      if (!/^\d{1,6}$/.test(raw)) return null;
+      const n = Number(raw);
+      return n >= 1 && n <= 100000 ? n : null;
+    }
+
     function newLogId() {
       const uniquePart = (window.crypto && typeof crypto.randomUUID === 'function')
         ? crypto.randomUUID()
@@ -1386,6 +1476,7 @@
     function dbErrorMessage(err, prefix = 'บันทึกไม่สำเร็จ') {
       const msg = (err && (err.message || err.details)) || String(err);
       if ((err && err.code === 'PGRST204') || /column .* (does not exist|not find)|could not find the .* column/i.test(msg)) {
+        if (/packSize/i.test(msg)) return 'ฐานข้อมูลยังไม่มีคอลัมน์อัตรา กรุณารันไฟล์ supabase-pack-size.sql ใน Supabase ก่อน';
         return 'ฐานข้อมูลยังไม่มีคอลัมน์สถานะ กรุณารันไฟล์ supabase-setup.sql ใน Supabase ก่อน';
       }
       if ((err && err.code === '42501') || /row-level security|permission denied|ไม่มีสิทธิ์/i.test(msg)) {
@@ -1449,7 +1540,7 @@
     function renderActiveCard(item) {
       const state = expiryState(item.diffDays);
       const pName = escapeHtml(item.master.name || 'ไม่ทราบชื่อสินค้า');
-      const pUnit = escapeHtml(item.master.unit || 'ชิ้น');
+      const pUnit = escapeHtml(unitWithPack(item.master));
       const pImg = escapeHtml(safeImageUrl(item.master.imageUrl));
       const safeId = escapeHtml(item.id);
       return `
@@ -1477,7 +1568,7 @@
     function renderHistoryCard(item) {
       const meta = statusMeta(item.status);
       const pName = escapeHtml(item.master.name || 'ไม่ทราบชื่อสินค้า');
-      const pUnit = escapeHtml(item.master.unit || 'ชิ้น');
+      const pUnit = escapeHtml(unitWithPack(item.master));
       const pImg = escapeHtml(safeImageUrl(item.master.imageUrl));
       return `
         <div data-id="${escapeHtml(item.id)}" onclick="openDetailModal(this.dataset.id)" class="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center space-x-3 cursor-pointer hover:border-slate-300 transition">
@@ -1571,7 +1662,7 @@
       handleSelectedStatus = null;
 
       document.getElementById('handle-product-name').textContent = `${master.name || 'ไม่ทราบชื่อสินค้า'} · Exp ${log.expDate}`;
-      document.getElementById('handle-total-qty').textContent = `${log.qty} ${master.unit || 'ชิ้น'}`;
+      document.getElementById('handle-total-qty').textContent = `${log.qty} ${unitWithPack(master)}`;
       const qtyInput = document.getElementById('handle-qty');
       qtyInput.max = log.qty;
       qtyInput.value = log.qty;
@@ -1752,7 +1843,11 @@
       document.getElementById('detail-name').textContent = master.name || 'ไม่ทราบชื่อสินค้า';
       document.getElementById('detail-barcode-badge').textContent = `BARCODE: ${log.barcode}`;
       document.getElementById('detail-qty').textContent = log.qty;
-      document.getElementById('detail-unit').textContent = master.unit || 'ชิ้น';
+      document.getElementById('detail-unit').textContent = unitWithPack(master);
+      const pack = packSizeOf(master);
+      const piecesEl = document.getElementById('detail-pieces');
+      piecesEl.textContent = `รวม ${(Number(log.qty) * pack).toLocaleString('th-TH')} ชิ้น`;
+      piecesEl.classList.toggle('hidden', pack <= 1);
       document.getElementById('detail-exp').textContent = log.expDate;
 
       const badge = document.getElementById('detail-status-badge');
@@ -2205,12 +2300,12 @@
             const m = findMaster(log.barcode);
             const days = daysUntil(log.expDate);
             const state = days < 0 ? 'หมดอายุแล้ว' : (days <= 14 ? 'ใกล้หมดอายุ' : 'ปกติ');
-            return [log.barcode, m.name || 'ไม่ทราบชื่อสินค้า', Number(log.qty), m.unit || '', log.expDate, days, state, log.note || '', formatDateTime(log.createdAt)];
+            return [log.barcode, m.name || 'ไม่ทราบชื่อสินค้า', Number(log.qty), m.unit || '', packLabel(m), Number(log.qty) * packSizeOf(m), log.expDate, days, state, log.note || '', formatDateTime(log.createdAt)];
           });
         sheets.push({
           name: 'รายการปัจจุบัน', key: 'current',
-          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'จำนวน', 'หน่วย', 'วันหมดอายุ', 'เหลือ (วัน)', 'สถานะ', 'หมายเหตุ', 'วันที่บันทึก'],
-          rows, widths: [16, 28, 8, 8, 12, 10, 12, 28, 17], textCols: [0]
+          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'จำนวน', 'หน่วย', 'อัตรา', 'รวม (ชิ้น)', 'วันหมดอายุ', 'เหลือ (วัน)', 'สถานะ', 'หมายเหตุ', 'วันที่บันทึก'],
+          rows, widths: [16, 28, 8, 8, 8, 10, 12, 10, 12, 28, 17], textCols: [0]
         });
       }
 
@@ -2220,21 +2315,21 @@
           .sort((a, b) => String(b.handledAt || '').localeCompare(String(a.handledAt || '')))
           .map(log => {
             const m = findMaster(log.barcode);
-            return [log.barcode, m.name || 'ไม่ทราบชื่อสินค้า', Number(log.qty), m.unit || '', log.expDate, statusMeta(log.status).label, formatDateTime(log.handledAt), log.note || ''];
+            return [log.barcode, m.name || 'ไม่ทราบชื่อสินค้า', Number(log.qty), m.unit || '', packLabel(m), log.expDate, statusMeta(log.status).label, formatDateTime(log.handledAt), log.note || ''];
           });
         sheets.push({
           name: 'ประวัติการจัดการ', key: 'history',
-          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'จำนวน', 'หน่วย', 'วันหมดอายุ', 'การจัดการ', 'วันที่จัดการ', 'หมายเหตุ'],
-          rows, widths: [16, 28, 8, 8, 12, 16, 17, 28], textCols: [0]
+          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'จำนวน', 'หน่วย', 'อัตรา', 'วันหมดอายุ', 'การจัดการ', 'วันที่จัดการ', 'หมายเหตุ'],
+          rows, widths: [16, 28, 8, 8, 8, 12, 16, 17, 28], textCols: [0]
         });
       }
 
       if (document.getElementById('export-master').checked) {
-        const rows = (window.masterProducts || []).map(p => [p.barcode, p.name || '', p.unit || '', /^https:/i.test(p.imageUrl || '') ? p.imageUrl : '']);
+        const rows = (window.masterProducts || []).map(p => [p.barcode, p.name || '', p.unit || '', packLabel(p), /^https:/i.test(p.imageUrl || '') ? p.imageUrl : '']);
         sheets.push({
           name: 'สินค้าหลัก', key: 'products',
-          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'หน่วย', 'ลิงก์รูปภาพ'],
-          rows, widths: [16, 30, 10, 50], textCols: [0]
+          header: ['บาร์โค้ด', 'ชื่อสินค้า', 'หน่วย', 'อัตรา', 'ลิงก์รูปภาพ'],
+          rows, widths: [16, 30, 10, 8, 50], textCols: [0]
         });
       }
       return sheets;
